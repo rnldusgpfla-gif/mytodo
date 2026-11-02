@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="to-do">
 <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
@@ -63,7 +63,7 @@ html.dragging-now, html.dragging-now *{-webkit-user-select:none;user-select:none
 .titlebar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding-block:10px 4px}
 .titlebar h1{margin:0;text-align:center;font-size:22px;font-weight:500;letter-spacing:-.01em}
 .logo{min-width:0;display:flex;justify-content:center}
-.logo img{height:46px;width:auto;max-width:100%;display:block}
+.logo img{height:36px;width:auto;max-width:100%;display:block}
 .logo .logo-d{display:none}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logo .logo-l{display:none} :root:not([data-theme="light"]) .logo .logo-d{display:block}}
 :root[data-theme="dark"] .logo .logo-l{display:none} :root[data-theme="dark"] .logo .logo-d{display:block}
@@ -255,7 +255,46 @@ const FOLDERS = {
 };
 const ORDER = ['daily','project','asap','someday','bucket','hold'];
 const COLORS = ['--f-daily','--f-project','--f-asap','--f-someday','--f-bucket','--f-hold','--f-c1','--f-c2','--f-c3','--f-c4','--f-c5','--f-c6'];
-const LSKEY = 'todo-drawer.v1', FSKEY = 'todo-drawer.fs';
+const LSKEY = 'todo-drawer.v1', FSKEY = 'todo-drawer.fs', THKEY = 'todo-drawer.theme', FTKEY = 'todo-drawer.font';
+const IN_CLAUDE = !!(window.claude && window.claude.use);
+const NN = 'https://cdn.jsdelivr.net/gh/projectnoonnu/';
+const FONTS = [
+  ['system',     '기본',          null, null],
+  ['gmarket',    'G마켓 산스',     'GmarketSans',        NN+'noonfonts_2001@1.1/GmarketSansMedium.woff'],
+  ['pretendard', '프리텐다드',     'Pretendard',         'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2'],
+  ['paperlogy',  '페이퍼로지',     'Paperlogy',          NN+'2408-3@1.0/Paperlogy-4Regular.woff2'],
+  ['chosungu',   '조선굴림체',     'ChosunGu',           NN+'noonfonts_20-04@1.0/ChosunGu.woff'],
+  ['chosunmj',   '조선일보명조체', 'Chosunilbo_myungjo', NN+'noonfonts_one@1.0/Chosunilbo_myungjo.woff'],
+  ['chosun100',  '조선 100년체',   'ChosunCentennial',   NN+'noonfonts_2206-02@1.0/ChosunCentennial.woff2'],
+  ['dunggeunmo', '둥근모꼴',       'DungGeunMo',         NN+'noonfonts_six@1.2/DungGeunMo.woff'],
+  ['shinmj',     '조선신명조',     'JoseonShinmyeongjo', NN+'noonfonts_20-04@1.1/ChosunSm.woff'],
+  ['shilla',     '신라문화체',     'Shilla',             NN+'noonfonts_2206-02@1.0/Shilla_CultureM-Medium.woff2'],
+  ['busan',      '부산단디고딕',   'BusanDandiGothic',   'https://cdn.jsdelivr.net/gh/Project-Noonnu/2610132210@l/l/%EB%B6%80%EC%82%B0%EB%8B%A8%EB%94%94%EA%B3%A0%EB%94%95M.woff2'],
+  ['yoon',       '윤초록우산어린이 만세', 'YoonChoWooSan', NN+'2408@1.0/YoonChildfundkoreaManSeh.woff2'],
+  ['gowun',      '고운돋움',       'GowoonDodum',        NN+'noonfonts_2108@1.1/GowunDodum-Regular.woff'],
+  ['myoeun',     '그리운 묘은또박체', 'BelovedMyoeunttobak', NN+'2601-1@1.0/Griun_Myoeunddobak-Rg.woff2'],
+  ['ryuryu',     '온글잎 류류체',   'OngleipRyuryu',      NN+'2405-2@1.0/Ownglyph_ryurue-Rg.woff2'],
+];
+const BASE_FONT = '-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif';
+let fontPref = 'system', themePref = 'system';
+try{ fontPref = localStorage.getItem(FTKEY) || 'system'; themePref = localStorage.getItem(THKEY) || 'system'; }catch(e){}
+const hostTheme = document.documentElement.getAttribute('data-theme');
+function applyTheme(){
+  const r = document.documentElement;
+  if (themePref==='light' || themePref==='dark') r.setAttribute('data-theme', themePref);
+  else if (hostTheme) r.setAttribute('data-theme', hostTheme);
+  else r.removeAttribute('data-theme');
+}
+function applyFont(){
+  const f = FONTS.find(x=>x[0]===fontPref) || FONTS[0];
+  let st = document.getElementById('font-face');
+  if (!st){ st = document.createElement('style'); st.id = 'font-face'; document.head.append(st); }
+  if (!f[2] || IN_CLAUDE){ st.textContent = ''; document.documentElement.style.removeProperty('--font'); return; }
+  const fmt = f[3].endsWith('woff2') ? 'woff2' : 'woff';
+  st.textContent = `@font-face{font-family:"${f[2]}";src:url("${f[3]}") format("${fmt}");font-weight:normal;font-style:normal;font-display:swap}`;
+  document.documentElement.style.setProperty('--font', `"${f[2]}",${BASE_FONT}`);
+}
+applyTheme(); applyFont();
 const ICON = {
   check:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>',
   star:'<svg viewBox="0 0 24 24"><path d="M12 3.4l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.8l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg>',
@@ -1080,7 +1119,16 @@ function openSettings(){
           fsPref = k; document.documentElement.dataset.fs = k; try{ localStorage.setItem(FSKEY, k); }catch(e){}
           draw();
         }}, l)))),
-      h('p',{class:'hint', style:'padding:0'}, '글자 크기는 지금 쓰는 기기에만 적용돼요.'),
+      h('div',{class:'field'}, h('span',null,'화면 모드'),
+        h('div',{class:'chips'}, [['system','기기 설정 따라가기'],['light','라이트'],['dark','다크']].map(([k,l])=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(themePref===k), onclick:()=>{
+          themePref = k; try{ localStorage.setItem(THKEY, k); }catch(e){} applyTheme(); draw();
+        }}, l)))),
+      h('div',{class:'field'}, h('span',null,'글꼴'),
+        IN_CLAUDE ? h('span',{style:'font-size:13px;color:var(--fg-3)'}, '글꼴은 홈 화면에 추가한 앱에서 바꿀 수 있어요.') :
+        h('div',{class:'chips'}, FONTS.map(([k,l])=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(fontPref===k), onclick:()=>{
+          fontPref = k; try{ localStorage.setItem(FTKEY, k); }catch(e){} applyFont(); draw();
+        }}, l)))),
+      h('p',{class:'hint', style:'padding:0'}, '글자 크기, 화면 모드, 글꼴은 지금 쓰는 기기에만 적용돼요.'),
       h('div',{class:'field'}, h('span',null,'저장'), h('div',{class:'status', 'data-s':syncState}, h('i'), SYNC_TEXT[syncState])),
       h('div',{class:'field'}, h('span',null,'백업 (다른 기기나 새 앱으로 옮길 때)'),
         h('div',{class:'chips'},
