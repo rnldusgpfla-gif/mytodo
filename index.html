@@ -73,7 +73,7 @@ html.dragging-now, html.dragging-now *{-webkit-user-select:none;user-select:none
 .tab{flex:none;border:0;background:none;padding:8px 9px 10px;font-size:15px;color:var(--fg-2);display:flex;align-items:center;gap:6px;position:relative;white-space:nowrap}
 .tab .n{background:var(--pill);color:var(--fg-2);font-size:12px;font-weight:600;border-radius:99px;padding:1px 7px;font-variant-numeric:tabular-nums}
 .tab[aria-selected="true"]{color:var(--accent);font-weight:600}
-.tab[aria-selected="true"]::after{content:"";position:absolute;left:6px;right:6px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--accent)}
+.tab[aria-selected="true"]::after{content:"";position:absolute;left:6px;right:6px;bottom:0;height:1.5px;border-radius:1px;background:var(--accent)}
 
 main{padding-block:4px 120px}
 
@@ -122,6 +122,8 @@ li.done .box{border-color:var(--fg-3)}
 
 /* swipe-to-move backdrop */
 .swipebg{position:absolute;left:0;right:0;z-index:0;display:flex;align-items:center;gap:8px;padding-left:20px;background:var(--pill);color:var(--fg-2);font-weight:600;font-size:14px;transition:background .12s,color .12s}
+.swipedel{position:absolute;left:0;right:0;z-index:0;display:flex;justify-content:flex-end;background:var(--star)}
+.swipedel button{width:84px;border:0;background:transparent;color:#fff;font-weight:600;font-size:15px}
 .swipebg.arm{background:var(--f-daily);color:var(--bg)}
 .swipebg svg{width:18px;height:18px}
 
@@ -606,18 +608,48 @@ function swipeMove(){
   const armed = dx > SWIPE_AT;
   if (armed !== D.armed){ D.armed = armed; D.bg.classList.toggle('arm', armed); if (armed) buzz(); }
 }
+const DEL_W = 84;
+let openRow = null;
+function closeOpenRow(){
+  if (!openRow) return;
+  const o = openRow; openRow = null;
+  o.li.style.transition = 'transform .18s ease'; o.li.style.transform = '';
+  setTimeout(()=>{ o.bg.remove(); o.li.style.transition = ''; if (needRender){ needRender = false; render(); } }, 190);
+}
+function beginSwipeLeft(){
+  if (!D || !document.body.contains(D.li)){ D = null; return; }
+  closeOpenRow();
+  D.mode = 'swipeL'; D.armed = false;
+  const id = D.li.dataset.id;
+  D.bg = h('div',{class:'swipedel', style:`top:${D.li.offsetTop}px;height:${D.li.offsetHeight}px`},
+    h('button',{type:'button', 'aria-label':'삭제', onclick:()=>{ openRow = null; removeTask(id); }}, '삭제'));
+  D.ul.insertBefore(D.bg, D.li);
+  D.li.style.transition = 'none';
+  document.documentElement.classList.add('dragging-now');
+}
+function swipeLeftMove(){
+  const dx = Math.min(0, D.lastX - D.x);
+  const x = dx < -DEL_W ? -DEL_W + (dx + DEL_W) * 0.3 : dx;
+  D.li.style.transform = `translateX(${x}px)`;
+  const armed = dx < -40;
+  if (armed !== D.armed){ D.armed = armed; if (armed) buzz(); }
+}
+/* any tap outside the delete button closes an open row (and doesn't open the edit sheet) */
+document.addEventListener('pointerdown', e=>{
+  if (openRow && !e.target.closest('.swipedel')){ if (openRow.li.contains(e.target)) lastGesture = Date.now(); closeOpenRow(); }
+}, true);
 window.addEventListener('pointermove', e=>{
   if (!D) return;
   D.lastX = e.clientX; D.lastY = e.clientY;
   const dx = e.clientX - D.x, dy = e.clientY - D.y;
   if (!D.mode){
-    if (dx > 12 && Math.abs(dx) > Math.abs(dy)*1.3){ clearTimeout(D.timer); beginSwipe(); }
+    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)*1.3){ clearTimeout(D.timer); if (dx > 0) beginSwipe(); else beginSwipeLeft(); }
     else if (D.type==='mouse'){ if (Math.hypot(dx,dy) > 6) beginDrag(); }
     else if (Math.hypot(dx,dy) > 10){ clearTimeout(D.timer); D = null; }
     return;
   }
   e.preventDefault();
-  if (D.mode==='drag') dragMove(); else swipeMove();
+  if (D.mode==='drag') dragMove(); else if (D.mode==='swipeL') swipeLeftMove(); else swipeMove();
 });
 document.addEventListener('touchmove', e=>{ if (D && D.mode) e.preventDefault(); }, {passive:false});
 function endGesture(){
@@ -627,6 +659,12 @@ function endGesture(){
   if (!d.mode) return;
   lastGesture = Date.now();
   document.documentElement.classList.remove('dragging-now');
+  if (d.mode==='swipeL'){
+    d.li.style.transition = 'transform .18s ease';
+    if (Math.min(0, d.lastX - d.x) < -40){ d.li.style.transform = `translateX(${-DEL_W}px)`; openRow = {li:d.li, bg:d.bg}; }
+    else { d.li.style.transform = ''; setTimeout(()=>{ d.bg.remove(); d.li.style.transition = ''; if (needRender){ needRender = false; render(); } }, 190); }
+    return;
+  }
   if (d.mode==='swipe'){
     d.bg.remove(); d.li.style.transition = ''; d.li.style.transform = '';
     if (Math.max(0, d.lastX - d.x) > SWIPE_AT) d.opts.onSwipe(d.li.dataset.id);
@@ -645,7 +683,7 @@ window.addEventListener('pointercancel', endGesture);
 
 /* ---------- render ---------- */
 function render(){
-  if (D && D.mode){ needRender = true; return; }
+  if ((D && D.mode) || openRow){ needRender = true; return; }
   needRender = false; rendering = true;
   const a = document.activeElement;
   const keep = a && a.id && a.tagName==='INPUT' && !document.getElementById('layer').contains(a) ? {id:a.id, v:a.value, s:a.selectionStart, e:a.selectionEnd} : null;
