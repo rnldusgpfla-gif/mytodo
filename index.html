@@ -1117,6 +1117,12 @@ function importBackup(text){
 }
 function openSettings(){
   let showImport = false, showCopy = false;
+  const init = {fs:fsPref, th:themePref, ft:fontPref};
+  const revert = () => {
+    fsPref = init.fs; themePref = init.th; fontPref = init.ft;
+    document.documentElement.dataset.fs = fsPref; applyTheme(); applyFont();
+    try{ localStorage.setItem(FSKEY, fsPref); localStorage.setItem(THKEY, themePref); localStorage.setItem(FTKEY, fontPref); }catch(e){}
+  };
   const sizes = [['s','작게'],['m','보통'],['l','크게'],['xl','아주 크게']];
   const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'설정'});
   const draw = () => {
@@ -1137,7 +1143,7 @@ function openSettings(){
         h('div',{class:'chips'}, FONTS.map(([k,l,fam])=>h('button',{type:'button', class:'chip plain fontchip', style: fam ? `font-family:"${fam}",${BASE_FONT}` : null, 'aria-pressed':String(fontPref===k), onclick:()=>{
           fontPref = k; try{ localStorage.setItem(FTKEY, k); }catch(e){} applyFont(); draw();
         }}, l)))),
-      h('p',{class:'hint', style:'padding:0'}, '글자 크기, 화면 모드, 글꼴은 지금 쓰는 기기에만 적용돼요.'),
+      h('p',{class:'hint', style:'padding:0'}, '고르면 바로 미리 보여요. 저장을 누르면 그대로 유지되고, 취소를 누르면 원래대로 돌아가요. 이 설정은 지금 쓰는 기기에만 적용돼요.'),
       h('div',{class:'field'}, h('span',null,'저장'), h('div',{class:'status', 'data-s':syncState}, h('i'), SYNC_TEXT[syncState])),
       h('div',{class:'field'}, h('span',null,'백업 (다른 기기나 새 앱으로 옮길 때)'),
         h('div',{class:'chips'},
@@ -1157,7 +1163,9 @@ function openSettings(){
             closeLayer(); toast('백업을 가져왔어요');
           }}, '가져오기')));
       })() : null,
-      h('div',{class:'row', style:'justify-content:flex-end'}, h('button',{class:'btn pri', type:'button', onclick:closeLayer}, '닫기'))].filter(Boolean));
+      h('div',{class:'row'},
+        h('button',{class:'btn', type:'button', onclick:()=>{ revert(); closeLayer(); }}, '취소'),
+        h('button',{class:'btn pri', type:'button', onclick:()=>{ closeLayer(); toast('설정을 저장했어요'); }}, '저장'))].filter(Boolean));
   };
   draw(); openLayer(sheet);
 }
