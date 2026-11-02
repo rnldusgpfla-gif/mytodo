@@ -195,6 +195,7 @@ li.addrow input:focus{outline:none}
 .chip{border:1px solid var(--line);background:var(--sheet);border-radius:99px;padding:6px 12px;font-size:14px;display:flex;align-items:center;gap:6px}
 .chip::before{content:"";width:8px;height:8px;border-radius:3px;background:var(--c,var(--fg-3))}
 .chip.plain::before{display:none}
+.chip.fontchip{font-size:16px;padding:7px 14px}
 .chip[aria-pressed="true"]{background:var(--c,var(--accent));border-color:var(--c,var(--accent));color:var(--bg)}
 .chip[aria-pressed="true"]::before{background:var(--bg)}
 .chip.day{width:40px;justify-content:center;padding:6px 0}
@@ -295,6 +296,13 @@ function applyFont(){
   document.documentElement.style.setProperty('--font', `"${f[2]}",${BASE_FONT}`);
 }
 applyTheme(); applyFont();
+/* every font's face, declared only when settings opens so each name can show in its own style */
+function ensureAllFaces(){
+  if (IN_CLAUDE || document.getElementById('font-faces-all')) return;
+  const st = document.createElement('style'); st.id = 'font-faces-all';
+  st.textContent = FONTS.filter(f=>f[2]).map(f=>`@font-face{font-family:"${f[2]}";src:url("${f[3]}") format("${f[3].endsWith('woff2')?'woff2':'woff'}");font-display:swap}`).join('');
+  document.head.append(st);
+}
 const ICON = {
   check:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>',
   star:'<svg viewBox="0 0 24 24"><path d="M12 3.4l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.8l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg>',
@@ -1113,7 +1121,8 @@ function openSettings(){
   const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'설정'});
   const draw = () => {
     sheet.innerHTML='';
-    sheet.append(h('div',{class:'grab'}),
+    ensureAllFaces();
+    sheet.append(...[h('div',{class:'grab'}),
       h('div',{class:'field'}, h('span',null,'글자 크기'),
         h('div',{class:'chips'}, sizes.map(([k,l])=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(fsPref===k), onclick:()=>{
           fsPref = k; document.documentElement.dataset.fs = k; try{ localStorage.setItem(FSKEY, k); }catch(e){}
@@ -1125,7 +1134,7 @@ function openSettings(){
         }}, l)))),
       h('div',{class:'field'}, h('span',null,'글꼴'),
         IN_CLAUDE ? h('span',{style:'font-size:13px;color:var(--fg-3)'}, '글꼴은 홈 화면에 추가한 앱에서 바꿀 수 있어요.') :
-        h('div',{class:'chips'}, FONTS.map(([k,l])=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(fontPref===k), onclick:()=>{
+        h('div',{class:'chips'}, FONTS.map(([k,l,fam])=>h('button',{type:'button', class:'chip plain fontchip', style: fam ? `font-family:"${fam}",${BASE_FONT}` : null, 'aria-pressed':String(fontPref===k), onclick:()=>{
           fontPref = k; try{ localStorage.setItem(FTKEY, k); }catch(e){} applyFont(); draw();
         }}, l)))),
       h('p',{class:'hint', style:'padding:0'}, '글자 크기, 화면 모드, 글꼴은 지금 쓰는 기기에만 적용돼요.'),
@@ -1148,7 +1157,7 @@ function openSettings(){
             closeLayer(); toast('백업을 가져왔어요');
           }}, '가져오기')));
       })() : null,
-      h('div',{class:'row', style:'justify-content:flex-end'}, h('button',{class:'btn pri', type:'button', onclick:closeLayer}, '닫기')));
+      h('div',{class:'row', style:'justify-content:flex-end'}, h('button',{class:'btn pri', type:'button', onclick:closeLayer}, '닫기'))].filter(Boolean));
   };
   draw(); openLayer(sheet);
 }
