@@ -769,7 +769,7 @@ function listBlock({id, folder, date, project, items, add=true}){
   attachGestures(ul, {onSwipe: isDaily ? swipeToNextDay : swipeToToday, swipeLabel: isDaily ? '다음 날로' : '오늘로'});
   frag.append(ul);
   if (done.length){
-    const k = 'done:'+id, isOpen = !!S.openDone[k];
+    const k = 'done:'+id, isOpen = S.openDone[k] ?? (folder==='daily');  // today's finished items start unfolded
     frag.append(h('button',{class:'fold', 'aria-expanded':String(isOpen), onclick:()=>{ S.openDone[k] = !isOpen; render(); }},
       h('span',{html:ICON.chev, style:'display:grid'}), `완료됨 (${done.length})`));
     if (isOpen){ const du = h('ul',{class:'tasks'}); done.forEach(t=>du.append(taskLi(t))); frag.append(du); }
