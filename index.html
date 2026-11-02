@@ -61,6 +61,7 @@ html.dragging-now, html.dragging-now *{-webkit-user-select:none;user-select:none
 /* header + tabs */
 .head{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .titlebar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding-block:10px 4px}
+@media (display-mode: standalone){.titlebar{padding-block:26px 4px}}
 .titlebar h1{margin:0;text-align:center;font-size:22px;font-weight:500;letter-spacing:-.01em}
 .logo{min-width:0;display:flex;justify-content:center}
 .logo img{height:36px;width:auto;max-width:100%;display:block}
