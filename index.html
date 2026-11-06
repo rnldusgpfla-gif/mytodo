@@ -739,7 +739,6 @@ function taskLi(t, opts={}){
   if (opts.showFolder) meta.push(h('span',null, placeLabel(t)));
   const r = t.routine && S.routines.get(t.routine);
   if (r) meta.push(h('span',null, h('span',{html:ICON.repeat}), ' ', ruleText(r.rule)));
-  if (t.folder==='daily' && t.carried && !t.done && !t.routine) meta.push(h('span',{class:'warn'}, `${t.carried+1}일째 미룬 일`));
   if (t.done && t.doneAt) meta.push(h('span',null, `${md(t.doneAt)} 완료`));
   const cid = 'c-'+t.id;
   return h('li',{'data-id': t.done || opts.still ? null : t.id, class:[t.star&&!t.done?'starred':'', t.done?'done':''].join(' ').trim() || null},
@@ -1222,7 +1221,7 @@ function openRollover(){
       const c = choice.get(t.id);
       const box = h('div',{class:'ro'},
         h('div',null, h('div',{class:'t'}, t.star ? '★ '+t.title : t.title, dueTag(t)),
-          h('div',{class:'m'}, `${mdw(t.date)} 할 일` + (t.carried ? ` · 이미 ${t.carried}번 미뤘어요` : ''))),
+          h('div',{class:'m'}, `${mdw(t.date)} 할 일`)),
         h('div',{class:'chips'}, opts().map(([k,l,col])=>h('button',{type:'button', class:'chip', style:`--c:var(${col})`, 'aria-pressed':String(c.dest===k), onclick:()=>{ c.dest=k; drawBody(); }}, l))));
       if (c.dest==='project'){
         const sel = h('select',{id:'ro-p-'+t.id, 'aria-label':'프로젝트 고르기'}, S.projects.map(p=>h('option',{value:p.id}, p.name)), h('option',{value:'__new'}, '+ 새 프로젝트'));
@@ -1262,7 +1261,7 @@ function openRollover(){
         });
         closeLayer();
         undoToast(`${moved}개를 옮겼어요` + (removed ? `, ${removed}개를 지웠어요` : ''), before);
-      }}, '정리하기'))));
+      }}, '재배치하기'))));
 }
 function maybeRollover(){
   if (!S.loaded || S.rolloverShown || document.getElementById('layer').firstChild) return;
