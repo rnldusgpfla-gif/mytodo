@@ -30,6 +30,7 @@ img{max-width:100%}
   --f-daily:#1F5BD6; --f-project:#188038; --f-asap:#E8710A; --f-someday:#7B61D1; --f-bucket:#C49000; --f-hold:#80868B;
   --f-c1:#D93F7A; --f-c2:#0F8C9C; --f-c3:#6A7F1E; --f-c4:#A0522D; --f-c5:#3F51B5; --f-c6:#546E7A;
   --lift:0 6px 22px rgba(0,0,0,.16); --fs:16px;
+  --n1:#FFF200; --n2:#FF7EB6; --n3:#B4FF2E; --n4:#A6D8FF; --n5:#FFA51F; --n6:#FF6BE8; --n7:#6CFFA8; --n8:#00EEFF; --n9:#FF6B57; --n10:#D94DFF; --n11:#3DFF1A; --n12:#5B9BD1;
   --font:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -116,6 +117,7 @@ li.done .txt{text-decoration:line-through;color:var(--fg-3)}
 li.done .box{border-color:var(--fg-3)}
 .due{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;padding:0 7px;border-radius:99px;margin-left:6px;vertical-align:1px;white-space:nowrap}
 .pbadge{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;padding:0 7px;border-radius:99px;margin-left:6px;vertical-align:1px;white-space:nowrap;color:var(--c);box-shadow:inset 0 0 0 1px var(--c);background:color-mix(in srgb, var(--c) 13%, transparent)}
+.pbadge.neon{background:var(--c);color:#161616;box-shadow:none}
 .due.over{background:var(--star-soft);color:var(--star)}
 .due.soon{background:var(--warn-soft);color:var(--warn)}
 .due.near{background:var(--accent-soft);color:var(--accent)}
@@ -192,7 +194,7 @@ li.addrow input:focus{outline:none}
 /* sheet + modal */
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--sheet);width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:10px max(18px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));max-height:90%;overflow-y:auto;animation:up .2s ease-out;display:flex;flex-direction:column;gap:16px}
-.grab{width:38px;height:4px;border-radius:9px;background:var(--line);margin:0 auto}
+.grab{width:38px;height:5px;border-radius:9px;background:var(--line);margin:0 auto;box-shadow:0 0 0 12px transparent;cursor:grab;flex:none}
 @keyframes up{from{transform:translateY(24px);opacity:.5}to{transform:none;opacity:1}}
 .titlein{display:flex;align-items:center;gap:8px}
 .titlein input{flex:1;min-width:0;border:0;border-bottom:1.5px solid var(--line);background:transparent;padding:10px 0;font-size:19px}
@@ -216,11 +218,15 @@ li.addrow input:focus{outline:none}
 .chip::before{content:"";width:8px;height:8px;border-radius:3px;background:var(--c,var(--fg-3))}
 .chip.plain::before{display:none}
 .chip.fontchip{font-size:16px;padding:7px 14px}
-.chip[aria-pressed="true"]{background:var(--c,var(--accent));border-color:var(--c,var(--accent));color:var(--bg)}
+.chip[aria-pressed="true"]{background:var(--c,var(--accent));border-color:var(--c,var(--accent));color:var(--on,var(--bg))}
+.chip[aria-pressed="true"]::before{background:var(--on,var(--bg))}
 .chip[aria-pressed="true"]::before{background:var(--bg)}
 .chip.day{width:40px;justify-content:center;padding:6px 0}
-.swatches{display:grid;grid-template-columns:repeat(auto-fill,36px);gap:10px}
-.sw{width:36px;height:36px;border-radius:50%;border:0;background:var(--c)}
+.swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;justify-items:center}
+.palette{display:flex;flex-direction:column;gap:8px}
+.pallabel{font-size:12px;color:var(--fg-3)}
+.pallabel:not(:first-child){margin-top:6px}
+.sw{width:38px;height:38px;border-radius:10px;border:0;background:var(--c)}
 .sw[aria-pressed="true"]{box-shadow:0 0 0 3px var(--sheet),0 0 0 5px var(--c)}
 .row{display:flex;gap:8px;justify-content:space-between;align-items:center}
 .btn{border:0;border-radius:99px;padding:11px 18px;font-weight:600;font-size:15px;background:var(--pill);color:var(--fg)}
@@ -275,7 +281,12 @@ const FOLDERS = {
   hold:    {name:'보류',      desc:'잠시 멈춰 둔 일',             c:'--f-hold'},
 };
 const ORDER = ['daily','project','asap','someday','bucket','hold'];
-const COLORS = ['--f-daily','--f-project','--f-asap','--f-someday','--f-bucket','--f-hold','--f-c1','--f-c2','--f-c3','--f-c4','--f-c5','--f-c6'];
+const NEON = ['--n1','--n2','--n3','--n4','--n5','--n6','--n7','--n8','--n9','--n10','--n11','--n12'];
+const CALM = ['--f-daily','--f-project','--f-asap','--f-someday','--f-bucket','--f-hold','--f-c1','--f-c2','--f-c3','--f-c4','--f-c5','--f-c6'];
+const COLORS = [...NEON, ...CALM];
+const isNeon = c => /^--n\d/.test(c || '');
+/* neon fills are bright, so text on them goes dark */
+const cstyle = c => `--c:var(${c})` + (isNeon(c) ? ';--on:#161616' : '');
 const LSKEY = 'todo-drawer.v1', FSKEY = 'todo-drawer.fs', THKEY = 'todo-drawer.theme', FTKEY = 'todo-drawer.font';
 const IN_CLAUDE = !!(window.claude && window.claude.use);
 const NN = 'https://cdn.jsdelivr.net/gh/projectnoonnu/';
@@ -526,7 +537,7 @@ const projColor = id => { const p = S.projects.find(x=>x.id===id); return (p && 
 function ensureProject(name, color){
   name = (name||'').trim() || '새 프로젝트';
   const ex = S.projects.find(p=>p.name===name); if (ex) return ex.id;
-  const p = {id:'p'+uid(), name, c: color || COLORS[(S.projects.length + 1) % COLORS.length], createdAt:Date.now()};
+  const p = {id:'p'+uid(), name, c: color || NEON[S.projects.length % NEON.length], createdAt:Date.now()};
   S.projects = [...S.projects, p]; putApp(); return p.id;
 }
 function reorder(movedId, prevId, nextId, ids){
@@ -767,7 +778,8 @@ function projBadge(t, opts){
   if (!t.project || !projExists(t.project) || t.done) return null;
   if (opts.inProject===t.project) return null;               // already inside that project's group
   if (opts.showFolder && t.folder==='project') return null;  // the place label already says it
-  return h('span',{class:'pbadge', style:`--c:var(${projColor(t.project)})`}, projName(t.project));
+  const c = projColor(t.project);
+  return h('span',{class: isNeon(c) ? 'pbadge neon' : 'pbadge', style:`--c:var(${c})`}, projName(t.project));
 }
 function taskLi(t, opts={}){
   const meta = [];
@@ -975,12 +987,53 @@ function renderRecord(main){
 
 /* ---------- overlays ---------- */
 let lastFocus = null;
-function openLayer(node, beforeClose){
+function openLayer(node, beforeClose, pullSave){
   lastFocus = document.activeElement;
   const layer = document.getElementById('layer'); layer.innerHTML='';
   layer._beforeClose = beforeClose || null;
   const scrim = h('div',{class:'scrim', onclick:e=>{ if (e.target===scrim) closeLayer(); }}, node);
   layer.append(scrim);
+  enablePullDown(node, pullSave);
+}
+function enablePullDown(node, pullSave){
+  let sy = 0, sx = 0, dy = 0, active = false, dragging = false;
+  const scrolledAbove = el => { for (; el && el !== node.parentNode; el = el.parentElement) if (el.scrollTop > 0) return true; return false; };
+  const start = (y, x, target) => { if (scrolledAbove(target)) return; sy = y; sx = x; dy = 0; active = true; dragging = false; };
+  const move = (y, x, e) => {
+    if (!active) return;
+    const d = y - sy, ddx = x - sx;
+    if (!dragging){
+      if (d > 8 && d > Math.abs(ddx) * 1.2){ dragging = true; node.style.animation = 'none'; node.style.transition = 'none'; }
+      else if (d < -4 || Math.abs(ddx) > 10){ active = false; return; }
+      else return;
+    }
+    if (e.cancelable) e.preventDefault();
+    dy = Math.max(0, d);
+    node.style.transform = `translateY(${dy}px)`;
+  };
+  const end = () => {
+    if (!active) return; active = false;
+    if (!dragging) return;
+    node.style.transition = 'transform .18s ease';
+    if (dy > Math.min(110, node.offsetHeight * 0.22)){
+      node.style.transform = `translateY(${node.offsetHeight}px)`;
+      lastGesture = Date.now();
+      setTimeout(()=>{
+        if (pullSave) pullSave(); else closeLayer();
+        if (node.isConnected) node.style.transform = '';   // stayed open (e.g. a name is still missing)
+      }, 170);
+    } else node.style.transform = '';
+  };
+  node.addEventListener('touchstart', e=>start(e.touches[0].clientY, e.touches[0].clientX, e.target), {passive:true});
+  node.addEventListener('touchmove', e=>move(e.touches[0].clientY, e.touches[0].clientX, e), {passive:false});
+  node.addEventListener('touchend', end); node.addEventListener('touchcancel', end);
+  node.addEventListener('mousedown', e=>{
+    if (!e.target.closest('.grab')) return;
+    start(e.clientY, e.clientX, e.target);
+    const mm = ev => move(ev.clientY, ev.clientX, ev);
+    const mu = () => { end(); window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', mu); };
+    window.addEventListener('mousemove', mm); window.addEventListener('mouseup', mu);
+  });
 }
 function closeLayer(){
   const layer = document.getElementById('layer');
@@ -1047,7 +1100,7 @@ function openTaskSheet(id){
       h('div',{class:'titlein'}, titleIn,
         h('button',{class:'star', 'aria-pressed':String(!!t.star), 'aria-label': t.star?'중요 표시 해제':'중요 표시', html:ICON.star, onclick:()=>{ saveTitle(); toggleStar(id); draw(); }})),
       h('div',{class:'field'}, h('span',null,'옮기기'),
-        h('div',{class:'chips'}, dests().map(([k,label,c])=>h('button',{type:'button', class:'chip', style:`--c:var(${c})`, 'aria-pressed':String(currentDest(t)===k), onclick:()=>{
+        h('div',{class:'chips'}, dests().map(([k,label,c])=>h('button',{type:'button', class:'chip', style:cstyle(c), 'aria-pressed':String(currentDest(t)===k), onclick:()=>{
           if (currentDest(t)===k) return;
           saveTitle();
           const cur = S.tasks.get(id), before = snap([id]);
@@ -1141,13 +1194,11 @@ function openRoutineSheet(rid){
 
 function openDrawerSheet(fid){
   const editing = !!fid, custom = editing && !!findDrawer(fid);
-  const I = editing ? info(fid) : {name:'', desc:'', c:COLORS[6 + (S.drawers.length % 6)]};
+  const I = editing ? info(fid) : {name:'', desc:'', c:NEON[S.drawers.length % NEON.length]};
   let color = I.c;
   const name = h('input',{id:'drawer-name', type:'text', value:I.name, placeholder:'예: 결혼 준비, 장보기', 'aria-label':'서랍 이름'});
   const desc = h('input',{id:'drawer-desc', type:'text', value:I.desc, placeholder:'예: 11월 안에 끝낼 일', 'aria-label':'서랍 설명'});
-  const sw = h('div',{class:'swatches'});
-  const drawSw = () => { sw.innerHTML=''; COLORS.forEach((c,i)=>sw.append(h('button',{type:'button', class:'sw', style:`--c:var(${c})`, 'aria-pressed':String(color===c), 'aria-label':`색 ${i+1}`, onclick:()=>{ color=c; drawSw(); }}))); };
-  drawSw();
+  const sw = swatchPicker(color, c=>{ color = c; });
   const save = () => {
     const n = name.value.trim(), dsc = desc.value.trim();
     if (!n){ name.focus(); toast('서랍 이름을 적어 주세요'); return; }
@@ -1171,25 +1222,32 @@ function openDrawerSheet(fid){
     h('label',{class:'field'}, h('span',null,'서랍 이름'), name),
     h('label',{class:'field'}, h('span',null,'설명 (이름 옆에 작게 보여요)'), desc),
     h('div',{class:'field'}, h('span',null,'색'), sw),
-    h('div',{class:'row'}, left, h('button',{class:'btn pri', type:'button', onclick:save}, editing ? '저장' : '만들기'))));
+    h('div',{class:'row'}, left, h('button',{class:'btn pri', type:'button', onclick:save}, editing ? '저장' : '만들기'))), null, ()=>{ if (name.value.trim()) save(); else closeLayer(); });
   if (!editing) setTimeout(()=>name.focus(), 50);
 }
 
 function swatchPicker(start, onPick){
   let color = start;
-  const sw = h('div',{class:'swatches'});
-  const draw = () => { sw.innerHTML=''; COLORS.forEach((c,i)=>sw.append(h('button',{type:'button', class:'sw', style:`--c:var(${c})`, 'aria-pressed':String(color===c), 'aria-label':`색 ${i+1}`, onclick:()=>{ color=c; onPick(c); draw(); }}))); };
-  draw(); return sw;
+  const box = h('div',{class:'palette'});
+  const draw = () => {
+    box.innerHTML='';
+    [['네온', NEON], ['차분한 색', CALM]].forEach(([label, list])=>{
+      const sw = h('div',{class:'swatches'});
+      list.forEach((c,i)=>sw.append(h('button',{type:'button', class:'sw', style:`--c:var(${c})`, 'aria-pressed':String(color===c), 'aria-label':`${label} ${i+1}`, onclick:()=>{ color=c; onPick(c); draw(); }})));
+      box.append(h('div',{class:'pallabel'}, label), sw);
+    });
+  };
+  draw(); return box;
 }
 function openNewProject(){
-  let color = COLORS[(S.projects.length + 1) % COLORS.length];
+  let color = NEON[S.projects.length % NEON.length];
   const name = h('input',{id:'newproj-name', type:'text', placeholder:'예: 이사 준비', 'aria-label':'새 프로젝트 이름'});
   const make = () => { if (!name.value.trim()) return; ensureProject(name.value, color); closeLayer(); };
   name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); make(); } });
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'새 프로젝트'},
     h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'새 프로젝트 이름'), name),
     h('div',{class:'field'}, h('span',null,'색 (할 일 옆 프로젝트 뱃지 색)'), swatchPicker(color, c=>{ color = c; })),
-    h('div',{class:'row'}, h('button',{class:'btn', type:'button', onclick:closeLayer}, '취소'), h('button',{class:'btn pri', type:'button', onclick:make}, '만들기'))));
+    h('div',{class:'row'}, h('button',{class:'btn', type:'button', onclick:closeLayer}, '취소'), h('button',{class:'btn pri', type:'button', onclick:make}, '만들기'))), null, ()=>{ if (name.value.trim()) make(); else closeLayer(); });
   setTimeout(()=>name.focus(), 50);
 }
 function openProjectSheet(pid){
@@ -1206,11 +1264,12 @@ function openProjectSheet(pid){
         all().filter(t=>t.project===pid).forEach(t=>putTask({...t, project:null}));
         S.projects = S.projects.filter(x=>x.id!==pid); putApp(); closeLayer(); toast('프로젝트를 지웠어요');
       }}, '프로젝트 삭제'),
-      h('button',{class:'btn pri', type:'button', onclick:()=>{
-        const v = name.value.trim() || p.name;
-        if (v!==p.name || color!==(p.c||'--f-project')){ S.projects = S.projects.map(x=>x.id===pid ? {...x, name:v, c:color} : x); putApp(); }
-        closeLayer();
-      }}, '저장'))));
+      h('button',{class:'btn pri', type:'button', onclick:()=>saveP()}, '저장'))), null, ()=>saveP());
+  function saveP(){
+    const v = name.value.trim() || p.name;
+    if (v!==p.name || color!==(p.c||'--f-project')){ S.projects = S.projects.map(x=>x.id===pid ? {...x, name:v, c:color} : x); putApp(); }
+    closeLayer();
+  }
 }
 
 function backupText(){
@@ -1304,7 +1363,7 @@ function openRollover(){
       const box = h('div',{class:'ro'},
         h('div',null, h('div',{class:'t'}, t.star ? '★ '+t.title : t.title, dueTag(t)),
           h('div',{class:'m'}, `${mdw(t.date)} 할 일`)),
-        h('div',{class:'chips'}, opts().map(([k,l,col])=>h('button',{type:'button', class:'chip', style:`--c:var(${col})`, 'aria-pressed':String(c.dest===k), onclick:()=>{ c.dest=k; drawBody(); }}, l))));
+        h('div',{class:'chips'}, opts().map(([k,l,col])=>h('button',{type:'button', class:'chip', style:cstyle(col), 'aria-pressed':String(c.dest===k), onclick:()=>{ c.dest=k; drawBody(); }}, l))));
       if (c.dest==='project'){
         const sel = h('select',{id:'ro-p-'+t.id, 'aria-label':'프로젝트 고르기'}, S.projects.map(p=>h('option',{value:p.id}, p.name)), h('option',{value:'__new'}, '+ 새 프로젝트'));
         sel.value = c.project; sel.addEventListener('change', ()=>{ c.project = sel.value; drawBody(); });
@@ -1321,9 +1380,9 @@ function openRollover(){
       h('h2',{id:'ro-h'}, `못 끝낸 일 ${items.length}개, 어디로 보낼까요?`),
       h('p',null,'고르지 않으면 모두 오늘로 옮겨요.'),
       h('div',{class:'chips', style:'margin-top:12px'},
-        h('button',{type:'button', class:'chip', style:`--c:var(${info('daily').c})`, onclick:()=>setAll('today')}, '모두 오늘'),
-        h('button',{type:'button', class:'chip', style:`--c:var(${info('someday').c})`, onclick:()=>setAll('someday')}, `모두 ${info('someday').name}`),
-        h('button',{type:'button', class:'chip', style:`--c:var(${info('hold').c})`, onclick:()=>setAll('hold')}, `모두 ${info('hold').name}`))),
+        h('button',{type:'button', class:'chip', style:cstyle(info('daily').c), onclick:()=>setAll('today')}, '모두 오늘'),
+        h('button',{type:'button', class:'chip', style:cstyle(info('someday').c), onclick:()=>setAll('someday')}, `모두 ${info('someday').name}`),
+        h('button',{type:'button', class:'chip', style:cstyle(info('hold').c), onclick:()=>setAll('hold')}, `모두 ${info('hold').name}`))),
     body,
     h('footer',null,
       h('button',{class:'btn', type:'button', onclick:closeLayer}, '나중에'),
