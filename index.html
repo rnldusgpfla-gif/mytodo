@@ -1280,7 +1280,7 @@ function openTaskSheet(id){
           putTask({...cur, folder:'daily', date:di.value, order: topKey(listOf('daily',{date:di.value}))}); buzz();
           undoToast(`${rel(di.value) || md(di.value)}(으)로 옮겼어요`, before); draw();
         });
-        return h('label',{class:'field'}, h('span',null,'날짜로 옮기기'), di);
+        return h('div',{class:'field'}, h('span',null,'날짜로 옮기기'), di);
       })(),
       (()=>{
         // link to a project: the task keeps its date/drawer and shows a colored project badge
