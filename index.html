@@ -25,7 +25,7 @@ img{max-width:100%}
 /* Layout: plain single column like a stock tasks app — centered title with search and settings, underline tabs with count pills, compact rows with a square box on the left and a star on the right */
 :root{
   --bg:#FFFFFF; --fg:#1F1F1F; --fg-2:#5F6368; --fg-3:#A0A5AB; --line:#E6E8EB; --pill:#E9EBEE; --hover:#F4F6F8;
-  --accent:#1F5BD6; --accent-soft:#E8EFFD; --star:#E2352F; --star-soft:#FDECEB; --pink:#FF1F8E; --warn:#C05A00; --warn-soft:#FFF1E2;
+  --accent:#1F5BD6; --accent-soft:#E8EFFD; --star:#E2352F; --star-soft:#FDECEB; --pink:#FF1F8E; --routine:#12B76A; --routine-soft:#E6F7EF; --warn:#C05A00; --warn-soft:#FFF1E2;
   --scrim:rgba(20,22,26,.38); --sheet:#FFFFFF;
   --f-daily:#1F5BD6; --f-project:#188038; --f-asap:#E8710A; --f-someday:#7B61D1; --f-bucket:#C49000; --f-hold:#80868B;
   --f-c1:#D93F7A; --f-c2:#0F8C9C; --f-c3:#6A7F1E; --f-c4:#A0522D; --f-c5:#3F51B5; --f-c6:#546E7A;
@@ -35,7 +35,7 @@ img{max-width:100%}
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#141517; --fg:#E8EAED; --fg-2:#9AA0A6; --fg-3:#62676D; --line:#2A2D31; --pill:#2C2F33; --hover:#1D1F22;
-  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --pink:#FF5CAD; --warn:#FFAE66; --warn-soft:#3A2A18;
+  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --pink:#FF5CAD; --routine:#3EE08F; --routine-soft:#173326; --warn:#FFAE66; --warn-soft:#3A2A18;
   --scrim:rgba(0,0,0,.6); --sheet:#1E2023;
   --f-daily:#8AB4F8; --f-project:#5BC27E; --f-asap:#FF9A4D; --f-someday:#A895F0; --f-bucket:#E8BD3A; --f-hold:#9AA0A6;
   --f-c1:#F07AA8; --f-c2:#4CC4D3; --f-c3:#A8C25A; --f-c4:#E09468; --f-c5:#8C9CF0; --f-c6:#93A6B0;
@@ -43,7 +43,7 @@ img{max-width:100%}
 }}
 :root[data-theme="dark"]{
   --bg:#141517; --fg:#E8EAED; --fg-2:#9AA0A6; --fg-3:#62676D; --line:#2A2D31; --pill:#2C2F33; --hover:#1D1F22;
-  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --pink:#FF5CAD; --warn:#FFAE66; --warn-soft:#3A2A18;
+  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --pink:#FF5CAD; --routine:#3EE08F; --routine-soft:#173326; --warn:#FFAE66; --warn-soft:#3A2A18;
   --scrim:rgba(0,0,0,.6); --sheet:#1E2023;
   --f-daily:#8AB4F8; --f-project:#5BC27E; --f-asap:#FF9A4D; --f-someday:#A895F0; --f-bucket:#E8BD3A; --f-hold:#9AA0A6;
   --f-c1:#F07AA8; --f-c2:#4CC4D3; --f-c3:#A8C25A; --f-c4:#E09468; --f-c5:#8C9CF0; --f-c6:#93A6B0;
@@ -144,6 +144,14 @@ li.addrow input:focus{outline:none}
 .fold svg{width:18px;height:18px;transition:transform .15s}
 .fold[aria-expanded="true"] svg{transform:rotate(90deg)}
 .hint{color:var(--fg-3);font-size:13px;padding:10px 0 0;margin:0}
+.sectlabel{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--fg-2);padding:10px 0 2px;min-height:36px}
+.sectlabel.routine{color:var(--routine)}
+.sectlabel .cnt{font-weight:500;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.tasks.routines + .sectlabel, .hint + .sectlabel{border-top:1px solid var(--line);margin-top:8px;padding-top:12px}
+.box.round{border-radius:50%}
+.tasks.routines .chk input:checked + .box{background:var(--routine);border-color:var(--routine)}
+.tasks.routines li.done .txt{text-decoration:none;color:var(--fg-3)}
+.streak{flex:none;font-size:12px;font-weight:600;color:var(--routine);padding-right:12px;min-width:44px;text-align:right}
 .sublabel{font-size:13px;color:var(--fg-3);padding:14px 0 2px}
 
 .banner{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-top:12px;border-radius:12px;background:var(--star-soft);font-size:14px}
@@ -757,7 +765,7 @@ function go(view){
 }
 function counts(){
   const t = today(), c = {};
-  folderIds().forEach(f => c[f] = all().filter(x => x.folder===f && !x.done && (f!=='daily' || x.date===t)).length);
+  folderIds().forEach(f => c[f] = all().filter(x => x.folder===f && !x.done && !x.routine && (f!=='daily' || x.date===t)).length);
   return c;
 }
 function renderTabs(){
@@ -769,7 +777,7 @@ function renderTabs(){
     : S.view===id;
   const tab = (id, label, n) => h('button',{class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n ? h('span',{class:'n'}, n) : null);
   nav.append(tab('daily', info('daily').name, c.daily));
-  nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done).length));
+  nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done && !x.routine).length));
   folderIds().filter(f=>f!=='daily').forEach(f => nav.append(tab(f, info(f).name, c[f])));
 }
 
@@ -847,7 +855,7 @@ function renderHome(main){
   overdueBanner(main);
   main.append(h('div',{class:'shead'}, h('h2',null,'서랍')));
   const t = today(), c = counts();
-  const dayAll = all().filter(x=>x.folder==='daily' && x.date===t);
+  const dayAll = all().filter(x=>x.folder==='daily' && x.date===t && !x.routine);
   const dayDone = dayAll.filter(x=>x.done).length;
   const row = (onclick, ic, name, subText, n, dragId) => h('li',{'data-id': dragId || null}, h('button',{onclick:()=>{ if (Date.now()-lastGesture < 400) return; onclick(); }}, ic,
     h('span',{class:'nm'}, h('b',null,name), subText ? h('span',null,subText) : null),
@@ -861,7 +869,7 @@ function renderHome(main){
   ul.append(h('li',{class:'addd'}, h('button',{onclick:()=>openDrawerSheet()}, h('span',{class:'ic', html:ICON.plus}), h('span',{class:'nm'}, h('b',null,'서랍 추가'), h('span',null,'나만의 서랍을 만들어요')))));
   ul.append(h('li',{class:'sep', 'aria-hidden':'true'}));
   ul.append(row(()=>go('starred'), h('span',{class:'ic', style:'color:var(--star)', html:ICON.starFill}), '별표한 일', '모든 서랍의 중요한 일', all().filter(x=>x.star && !x.done).length));
-  ul.append(row(()=>go('routines'), h('span',{class:'ic', style:'color:var(--accent)', html:ICON.repeat}), '반복 할 일', '매일·평일·매주·매월 자동으로 들어가요', S.routines.size));
+  ul.append(row(()=>go('routines'), h('span',{class:'ic', style:'color:var(--accent)', html:ICON.repeat}), '루틴', '정한 날마다 나오고, 다음 날로 넘어가지 않아요', S.routines.size));
   ul.append(row(()=>go('record'), h('span',{class:'ic', style:'color:var(--fg-2)', html:ICON.book}), '기록', `지금까지 끝낸 일 ${all().filter(x=>x.done).length}개`, ''));
   main.append(ul);
 }
@@ -878,20 +886,71 @@ function renderDaily(main){
       h('button',{class:'ib', 'aria-label':'전날', html:ICON.left, onclick:()=>{ S.viewDate=addDays(d,-1); render(); }}),
       h('button',{class:'ib', 'aria-label':'다음날', html:ICON.right, onclick:()=>{ S.viewDate=addDays(d,1); render(); }}),
       settingsBtn('daily'))));
-  const items = all().filter(t=>t.folder==='daily' && t.date===d);
+  renderRoutineSection(main, d);
+  const items = all().filter(t=>t.folder==='daily' && t.date===d && !t.routine);
+  main.append(h('div',{class:'sectlabel'}, '할 일'));
   main.append(listBlock({id:'daily-'+d, folder:'daily', date:d, items}));
-  // upcoming repeats for a future day, shown faintly until that day comes
-  if (d > today()){
-    const made = new Set([...S.tasks.values()].filter(t=>t.routineDate===d).map(t=>t.routine));
-    const up = [...S.routines.values()].filter(r=>(!r.start || r.start<=d) && ruleMatch(r.rule,d) && !made.has(r.id));
-    if (up.length){
-      main.append(h('div',{class:'sublabel'}, '이날 들어올 반복 할 일'));
-      main.append(h('ul',{class:'tasks preview'}, up.map(r=>h('li',null,
-        h('span',{class:'chk'}, h('span',{class:'box'})),
-        h('button',{class:'ttl', onclick:()=>openRoutineSheet(r.id)}, h('span',{class:'txt'}, r.title), h('span',{class:'meta'}, h('span',null, h('span',{html:ICON.repeat}), ' ', ruleText(r.rule)))),
-        h('span',{class:'star', html: r.star ? ICON.starFill : '', style: r.star ? 'color:var(--star)' : null})))));
-    }
+}
+/* routines: show up on their days, never carried over, tracked by day */
+function routinesOn(d){
+  return [...S.routines.values()].filter(r => (!r.start || r.start <= d) && ruleMatch(r.rule, d)).sort((a,b)=>(a.order ?? a.createdAt ?? 0)-(b.order ?? b.createdAt ?? 0));
+}
+function renderRoutineSection(main, d){
+  const inst = all().filter(t=>t.routine && t.routineDate===d);
+  const byR = new Map(inst.map(t=>[t.routine, t]));
+  const rows = [];
+  // today or earlier: the day's own entries; later days: what will come in
+  const list = d <= today() ? [...inst.map(t=>S.routines.get(t.routine)).filter(Boolean), ...inst.filter(t=>!S.routines.get(t.routine)).map(t=>({id:t.routine, title:t.title, rule:null, gone:true}))]
+                            : routinesOn(d);
+  const seen = new Set();
+  list.forEach(r=>{ if (seen.has(r.id)) return; seen.add(r.id); rows.push(r); });
+  const doneN = rows.filter(r=>byR.get(r.id)?.done).length;
+  const ul = h('ul',{class:'tasks routines' + (d > today() ? ' preview' : '')});
+  rows.forEach(r=>{
+    const t = byR.get(r.id);
+    const cid = 'rc-'+r.id+'-'+d;
+    ul.append(h('li',{class: t && t.done ? 'done' : null},
+      t ? h('label',{class:'chk', for:cid},
+            h('input',{type:'checkbox', id:cid, checked:!!t.done, onchange:()=>toggleDone(t.id), 'aria-label':(t.done?'완료 취소: ':'완료: ')+r.title}),
+            h('span',{class:'box round', html:ICON.check}))
+        : h('span',{class:'chk'}, h('span',{class:'box round'})),
+      h('button',{class:'ttl', onclick:()=>{ if (!r.gone) openRoutineSheet(r.id); }},
+        h('span',{class:'txt'}, r.title, r.rule ? h('span',{class:'when'}, ruleText(r.rule)) : null)),
+      h('span',{class:'streak'}, streakOf(r.id, d) >= 2 ? `${streakOf(r.id, d)}일째` : '')));
+  });
+  main.append(h('div',{class:'sectlabel routine'}, h('span',null, '루틴'),
+    rows.length && d <= today() ? h('span',{class:'cnt'}, `${doneN}/${rows.length}`) : null,
+    h('button',{class:'txtbtn', style:'margin-left:auto;color:var(--routine)', onclick:openNewRoutine}, '+ 루틴')));
+  if (rows.length) main.append(ul);
+  else main.append(h('p',{class:'hint', style:'padding:0 0 4px'}, S.routines.size ? '이날은 루틴이 없어요.' : '매일 하는 습관을 루틴으로 만들어 보세요.'));
+}
+/* consecutive scheduled days done, counting back from d (days the routine isn't scheduled are skipped) */
+function streakOf(rid, d){
+  const r = S.routines.get(rid); if (!r) return 0;
+  const done = new Set(all().filter(t=>t.routine===rid && t.done).map(t=>t.routineDate));
+  let n = 0, cur = d;
+  if (!done.has(cur)) cur = addDays(cur, -1);   // today not done yet doesn't break it
+  for (let i=0; i<400; i++){
+    if (r.start && cur < r.start) break;
+    if (ruleMatch(r.rule, cur)){ if (done.has(cur)) n++; else break; }
+    cur = addDays(cur, -1);
   }
+  return n;
+}
+function openNewRoutine(){
+  const name = h('input',{id:'newroutine-name', type:'text', placeholder:'예: 영양제 먹기, 스트레칭 10분', 'aria-label':'루틴 이름'});
+  const make = () => {
+    const v = name.value.trim(); if (!v){ name.focus(); return; }
+    const r = {id:'r'+uid(), title:v, star:false, rule:{type:'daily'}, start:today(), createdAt:Date.now()};
+    putRoutine(r); closeLayer(); ensureRoutines(); render(); openRoutineSheet(r.id);
+  };
+  name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); make(); } });
+  openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'새 루틴'},
+    h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'새 루틴'), name),
+    h('p',{class:'hint', style:'padding:0'}, '루틴은 정한 날마다 할 일 목록 위에 나와요. 못 해도 다음 날로 넘어가지 않아요.'),
+    h('div',{class:'row'}, h('button',{class:'btn', type:'button', onclick:closeLayer}, '취소'), h('button',{class:'btn pri', type:'button', onclick:make}, '다음'))),
+    null, ()=>{ if (name.value.trim()) make(); else closeLayer(); });
+  setTimeout(()=>name.focus(), 50);
 }
 
 /* --- plain + custom drawers --- */
@@ -931,9 +990,9 @@ function renderStarred(main){
 
 /* --- routines --- */
 function renderRoutines(main){
-  main.append(h('div',{class:'shead'}, h('h2',null,'반복 할 일', h('small',null,'정한 날마다 오늘 서랍에 들어가요'))));
+  main.append(h('div',{class:'shead'}, h('h2',null,'루틴', h('small',null,'정한 날마다 할 일 목록 위에 나와요'))));
   const ul = h('ul',{class:'tasks'});
-  const inp = h('input',{id:'add-routine', type:'text', placeholder:'반복할 일 추가', autocomplete:'off', enterkeyhint:'enter', 'aria-label':'반복할 일 추가'});
+  const inp = h('input',{id:'add-routine', type:'text', placeholder:'루틴 추가', autocomplete:'off', enterkeyhint:'enter', 'aria-label':'루틴 추가'});
   inp.addEventListener('keydown', e=>{
     if (e.key==='Enter' && !e.isComposing){
       e.preventDefault(); const v = inp.value.trim(); if (!v) return; inp.value='';
@@ -950,7 +1009,7 @@ function renderRoutines(main){
   });
   ul.append(routineAdd);
   main.append(ul);
-  if (!S.routines.size) main.append(h('p',{class:'hint'}, '예: 영양제 먹기(매일), 주간 회의 준비(매주 월), 관리비 내기(매월 25일). 오늘 할 일을 눌러서 반복을 켤 수도 있어요.'));
+  if (!S.routines.size) main.append(h('p',{class:'hint'}, '예: 영양제 먹기(매일), 스트레칭(평일), 운동(매주 월·수·금). 못 해도 다음 날로 넘어가지 않아요.'));
 }
 
 /* --- search --- */
@@ -990,7 +1049,7 @@ function renderRecord(main){
     main.append(h('section',{class:'day'}, h('h3',null, mdw(d) + (r ? ` · ${r}` : '')),
       h('ul',null, byDay.get(d).sort(byKey).map(x=>h('li',{class: x.folder==='bucket' ? 'big' : null},
         h('span',{class:'dot', html:ICON.check}), h('span',{class:'t'}, x.title),
-        h('span',{class:'tag'}, x.folder==='daily' ? '' : placeLabel(x)))))));
+        h('span',{class:'tag'}, x.routine ? '루틴' : x.folder==='daily' ? '' : placeLabel(x)))))));
   });
   if (dates.length > S.recCount) main.append(h('button',{class:'more', onclick:()=>{ S.recCount += 30; render(); }}, '이전 기록 더 보기'));
 }
@@ -1060,7 +1119,7 @@ function currentDest(t){
 }
 
 function ruleEditor(rule, base, onChange, allowNone){
-  const wrap = h('div',{class:'field'}, h('span',null,'반복'));
+  const wrap = h('div',{class:'field'}, h('span',null, allowNone ? '루틴으로 만들기 (정한 날마다 반복)' : '반복'));
   const types = [...(allowNone ? [['none','안 함']] : []), ['daily','매일'], ['weekdays','평일'], ['weekly','매주'], ['monthly','매월']];
   const cur = rule ? rule.type : 'none';
   wrap.append(h('div',{class:'chips'}, types.map(([k,l])=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(cur===k), onclick:()=>{ if (cur!==k) onChange(k==='none' ? null : defaultRule(k, rule, base)); }}, l))));
@@ -1158,14 +1217,14 @@ function openTaskSheet(id){
     sheet.append(ruleEditor(r ? r.rule : null, t.date || today(), nr=>{
       saveTitle();
       const cur = S.tasks.get(id), rr = cur.routine && S.routines.get(cur.routine);
-      if (!nr){ if (rr){ dropRoutine(rr.id); putTask({...cur, routine:null, routineDate:null}); toast('반복을 껐어요'); } }
+      if (!nr){ if (rr){ dropRoutine(rr.id); putTask({...cur, routine:null, routineDate:null}); toast('루틴을 껐어요'); } }
       else if (rr) putRoutine({...rr, rule:nr});
       else {
         const d = cur.folder==='daily' && cur.date ? cur.date : today();
         const nrt = {id:'r'+uid(), title:cur.title, star:!!cur.star, rule:nr, start:d, createdAt:Date.now()};
         putRoutine(nrt);
         putTask({...cur, folder:'daily', date:d, project:null, routine:nrt.id, routineDate:d, order: cur.folder==='daily' ? cur.order : topKey(listOf('daily',{date:d}))});
-        toast(`${ruleText(nr)} 반복해요`);
+        toast(`${ruleText(nr)} 하는 루틴이 됐어요`);
       }
       draw();
     }, true));
@@ -1177,26 +1236,26 @@ function openTaskSheet(id){
 }
 
 function openRoutineSheet(rid){
-  const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'반복 할 일'});
+  const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'루틴'});
   let titleIn;
   const saveTitle = () => { const r = S.routines.get(rid); const v = titleIn && titleIn.value.trim(); if (r && v && v!==r.title) putRoutine({...r, title:v}); };
   const draw = () => {
     const r = S.routines.get(rid); if (!r){ closeLayer(); return; }
     sheet.innerHTML='';
-    titleIn = h('input',{id:'routine-title', type:'text', value:r.title, 'aria-label':'반복 할 일 이름'});
+    titleIn = h('input',{id:'routine-title', type:'text', value:r.title, 'aria-label':'루틴 이름'});
     titleIn.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); titleIn.blur(); } });
     titleIn.addEventListener('change', saveTitle);
     sheet.append(h('div',{class:'grab'}),
       h('div',{class:'titlein'}, titleIn,
         h('button',{class:'star', 'aria-pressed':String(!!r.star), 'aria-label': r.star?'중요 표시 해제':'중요 표시', html:ICON.star, onclick:()=>{ saveTitle(); putRoutine({...S.routines.get(rid), star:!r.star}); draw(); }})),
       ruleEditor(r.rule, r.start || today(), nr=>{ saveTitle(); putRoutine({...S.routines.get(rid), rule:nr}); draw(); }, false),
-      h('p',{class:'hint', style:'padding:0'}, '정한 날이 되면 오늘 서랍에 자동으로 들어가요. 지난 기록은 그대로 남아요.'),
+      h('p',{class:'hint', style:'padding:0'}, '정한 날마다 할 일 목록 위에 나와요. 못 해도 다음 날로 넘어가지 않고, 한 날은 기록으로 남아요.'),
       h('div',{class:'row'},
         h('button',{class:'btn danger', type:'button', onclick:()=>{
           const before = S.routines.get(rid);
           dropRoutine(rid); document.getElementById('layer')._beforeClose = null; closeLayer();
-          toast('반복을 지웠어요','되돌리기',()=>{ putRoutine(before); render(); });
-        }}, '반복 삭제'),
+          toast('루틴을 지웠어요','되돌리기',()=>{ putRoutine(before); render(); });
+        }}, '루틴 삭제'),
         h('button',{class:'btn pri', type:'button', onclick:closeLayer}, '완료')));
   };
   draw(); openLayer(sheet, ()=>{ saveTitle(); ensureRoutines(); });
@@ -1321,7 +1380,7 @@ function openSettings(){
     sheet.append(...[h('div',{class:'grab'}),
       h('button',{type:'button', class:'recordrow', onclick:()=>{ closeLayer(); go('home'); }},
         h('span',{class:'ic', html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="7" rx="1.5"/><rect x="3.5" y="13" width="17" height="7" rx="1.5"/><path d="M10 7.5h4M10 16.5h4"/></svg>'}),
-        h('span',{class:'grow'}, h('b',null,'서랍'), h('span',{class:'sub'}, '서랍 목록·서랍 추가·별표한 일·반복 할 일')),
+        h('span',{class:'grow'}, h('b',null,'서랍'), h('span',{class:'sub'}, '서랍 목록·서랍 추가·별표한 일·루틴')),
         h('span',{class:'chev', html:ICON.chev})),
       h('button',{type:'button', class:'recordrow', onclick:()=>{ closeLayer(); go('record'); }},
         h('span',{class:'ic', html:ICON.book}),
