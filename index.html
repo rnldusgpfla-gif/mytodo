@@ -337,6 +337,7 @@ const rel = s => { const t = today(); if (s===t) return '오늘'; if (s===addDay
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 function nextDow(from, dow){ let d = from; while (parse(d).getDay() !== dow) d = addDays(d,1); return d; }
 const nextMonday = from => addDays(from, 7 - ((parse(from).getDay()+6)%7));
+const DAY_DESTS = {today:()=>today(), tomorrow:()=>addDays(today(),1), sat:()=>nextDow(today(),6), nextmon:()=>nextMonday(today())};
 
 /* ---------- repeat rules ---------- */
 function ruleMatch(rule, d){
@@ -488,8 +489,8 @@ function toggleStar(id){
   render();
 }
 function moveTask(t, dest, project){
-  if (dest==='today' || dest==='tomorrow'){
-    const date = dest==='today' ? today() : addDays(today(),1);
+  if (DAY_DESTS[dest]){
+    const date = DAY_DESTS[dest]();
     return {...t, folder:'daily', date, project:null, order: topKey(listOf('daily',{date}))};
   }
   return {...t, folder:dest, date:null, project: dest==='project' ? project : null, order: topKey(listOf(dest,{project}))};
@@ -951,9 +952,9 @@ function closeLayer(){
 }
 document.addEventListener('keydown', e=>{ if (e.key==='Escape' && document.getElementById('layer').firstChild) closeLayer(); });
 
-const dests = () => [['today','오늘',info('daily').c],['tomorrow','내일',info('daily').c], ...folderIds().filter(f=>f!=='daily').map(f=>[f, info(f).name, info(f).c])];
+const dests = () => [['today','오늘',info('daily').c],['tomorrow','내일',info('daily').c],['sat','이번 주 토요일',info('daily').c],['nextmon','다음 주 월요일',info('daily').c], ...folderIds().filter(f=>f!=='daily').map(f=>[f, info(f).name, info(f).c])];
 function currentDest(t){
-  if (t.folder==='daily'){ if (t.date===today()) return 'today'; if (t.date===addDays(today(),1)) return 'tomorrow'; return 'daily'; }
+  if (t.folder==='daily'){ for (const k of Object.keys(DAY_DESTS)) if (t.date===DAY_DESTS[k]()) return k; return 'daily'; }
   return t.folder;
 }
 
