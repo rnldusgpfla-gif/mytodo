@@ -450,6 +450,7 @@ function listOf(folder, {date, project} = {}){
     (folder!=='project' || (project ? t.project===project : !projExists(t.project))));
 }
 const topKey = list => list.length ? Math.min(...list.map(key)) - 1 : 0;
+const bottomKey = list => list.length ? Math.max(...list.map(key)) + 1 : 0;
 function placeLabel(t){
   if (t.folder==='project') return projName(t.project);
   if (t.folder==='daily') return t.date ? (rel(t.date) || md(t.date)) : '오늘';
@@ -481,7 +482,7 @@ function addTask(folder, title, extra={}){
   const date = folder==='daily' ? (extra.date || S.viewDate) : null;
   const project = folder==='project' ? (extra.project || null) : null;
   putTask({id:'t'+uid(), title, folder, date, project, star:false, done:false, doneAt:null, carried:0, due:null,
-    createdAt:Date.now(), order: topKey(listOf(folder,{date,project}))});
+    createdAt:Date.now(), order: bottomKey(listOf(folder,{date,project}))});
   render();
 }
 function toggleDone(id){
@@ -712,7 +713,7 @@ function render(){
   else if (v==='search') renderSearch(main);
   else if (FOLDERS[v] || findDrawer(v)) renderFolder(main, v);
   else { S.view = 'home'; renderTabs(); renderHome(main); }
-  if (keep){ const el = document.getElementById(keep.id); if (el){ el.value = keep.v; el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s, keep.e); }catch(_){} } }
+  if (keep){ const el = document.getElementById(keep.id); if (el){ el.value = keep.v; el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s, keep.e); }catch(_){} if (el.id.startsWith('add-')) el.scrollIntoView({block:'nearest'}); } }
   rendering = false;
 }
 function go(view){
@@ -774,14 +775,16 @@ function listBlock({id, folder, date, project, items, add=true}){
   const open = items.filter(t=>!t.done).sort(byKey);
   const done = items.filter(t=>t.done).sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
   const ul = h('ul',{class:'tasks'});
+  let addRow = null;
   if (add){
     const inp = h('input',{id:'add-'+id, type:'text', placeholder:'할 일 추가', autocomplete:'off', enterkeyhint:'enter', 'aria-label':'할 일 추가'});
     const commit = () => { const v = inp.value; if (!v.trim()) return; inp.value=''; addTask(folder, v, {date, project}); };
     inp.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); commit(); } });
     inp.addEventListener('blur', ()=>{ if (!rendering && inp.isConnected && inp.value.trim()) commit(); });
-    ul.append(h('li',{class:'addrow'}, h('label',{class:'chk', for:inp.id, 'aria-hidden':'true'}, h('span',{class:'box'})), inp));
+    addRow = h('li',{class:'addrow'}, h('label',{class:'chk', for:inp.id, 'aria-hidden':'true'}, h('span',{class:'box'})), inp);
   }
   open.forEach(t => ul.append(taskLi(t)));
+  if (addRow) ul.append(addRow);
   const isDaily = folder==='daily';
   attachGestures(ul, {onSwipe: isDaily ? swipeToNextDay : swipeToToday, swipeLabel: isDaily ? '다음 날로' : '오늘로'});
   frag.append(ul);
@@ -898,13 +901,14 @@ function renderRoutines(main){
       putRoutine(r); render(); openRoutineSheet(r.id);
     }
   });
-  ul.append(h('li',{class:'addrow'}, h('label',{class:'chk', for:inp.id, 'aria-hidden':'true'}, h('span',{class:'box'})), inp));
+  const routineAdd = h('li',{class:'addrow'}, h('label',{class:'chk', for:inp.id, 'aria-hidden':'true'}, h('span',{class:'box'})), inp);
   [...S.routines.values()].sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)).forEach(r=>{
     ul.append(h('li',{class: r.star ? 'starred' : null},
       h('span',{class:'chk', style:'color:var(--accent)', html:ICON.repeat.replace('<svg','<svg width="20" height="20"')}),
       h('button',{class:'ttl', onclick:()=>openRoutineSheet(r.id)}, h('span',{class:'txt'}, r.title), h('span',{class:'meta'}, ruleText(r.rule))),
       h('span',{class:'star', html: r.star ? ICON.starFill : '', style: r.star ? 'color:var(--star)' : null})));
   });
+  ul.append(routineAdd);
   main.append(ul);
   if (!S.routines.size) main.append(h('p',{class:'hint'}, '예: 영양제 먹기(매일), 주간 회의 준비(매주 월), 관리비 내기(매월 25일). 오늘 할 일을 눌러서 반복을 켤 수도 있어요.'));
 }
