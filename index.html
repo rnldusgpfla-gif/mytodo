@@ -198,6 +198,7 @@ li.addrow input:focus{outline:none}
 .field input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:44px;text-align:left}
 .field input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 .field input[type=date]::-webkit-datetime-edit{padding:0}
+.recordrow + .recordrow{margin-top:-8px}
 .recordrow{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;display:flex;align-items:center;gap:12px;padding:12px 14px;text-align:left}
 .recordrow .ic{width:20px;height:20px;color:var(--fg-2);display:grid}
 .recordrow b{font-weight:600;font-size:15px}
@@ -715,7 +716,9 @@ function render(){
   rendering = false;
 }
 function go(view){
-  S.view = view; if (view==='daily') S.viewDate = today();
+  if (view==='tomorrow'){ view = 'daily'; S.viewDate = addDays(today(),1); }
+  else if (view==='daily') S.viewDate = today();
+  S.view = view;
   render(); window.scrollTo(0,0);
   const sel = document.querySelector('.tab[aria-selected="true"]'); if (sel) sel.scrollIntoView({inline:'nearest', block:'nearest'});
 }
@@ -727,10 +730,14 @@ function counts(){
 function renderTabs(){
   const nav = document.getElementById('tabs'); nav.innerHTML='';
   const c = counts();
-  const sel = id => S.view===id || (id==='home' && (S.view==='starred' || S.view==='routines' || S.view==='record'));
+  const tmr = addDays(today(),1);
+  const sel = id => id==='daily' ? (S.view==='daily' && S.viewDate===today())
+    : id==='tomorrow' ? (S.view==='daily' && S.viewDate===tmr)
+    : S.view===id;
   const tab = (id, label, n) => h('button',{class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n ? h('span',{class:'n'}, n) : null);
-  nav.append(tab('home','서랍'));
-  folderIds().forEach(f => nav.append(tab(f, info(f).name, c[f])));
+  nav.append(tab('daily', info('daily').name, c.daily));
+  nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done).length));
+  folderIds().filter(f=>f!=='daily').forEach(f => nav.append(tab(f, info(f).name, c[f])));
 }
 
 function dueTag(t){
@@ -1186,6 +1193,10 @@ function openSettings(){
     sheet.innerHTML='';
     ensureAllFaces();
     sheet.append(...[h('div',{class:'grab'}),
+      h('button',{type:'button', class:'recordrow', onclick:()=>{ closeLayer(); go('home'); }},
+        h('span',{class:'ic', html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="7" rx="1.5"/><rect x="3.5" y="13" width="17" height="7" rx="1.5"/><path d="M10 7.5h4M10 16.5h4"/></svg>'}),
+        h('span',{class:'grow'}, h('b',null,'서랍'), h('span',{class:'sub'}, '서랍 목록·서랍 추가·별표한 일·반복 할 일')),
+        h('span',{class:'chev', html:ICON.chev})),
       h('button',{type:'button', class:'recordrow', onclick:()=>{ closeLayer(); go('record'); }},
         h('span',{class:'ic', html:ICON.book}),
         h('span',{class:'grow'}, h('b',null,'기록'), h('span',{class:'sub'}, `지금까지 끝낸 일 ${all().filter(x=>x.done).length}개`)),
