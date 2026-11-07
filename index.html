@@ -193,6 +193,7 @@ li.addrow input:focus{outline:none}
 .field{display:flex;flex-direction:column;gap:8px}
 .field > span{font-size:13px;color:var(--fg-2)}
 .field textarea{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:16px;width:100%;min-height:96px;font-family:ui-monospace,Menlo,monospace;resize:vertical}
+.field input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:44px;text-align:left}
 .field input,.field select{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:16px;width:100%}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:var(--sheet);border-radius:99px;padding:6px 12px;font-size:14px;display:flex;align-items:center;gap:6px}
@@ -1015,12 +1016,20 @@ function openTaskSheet(id){
           putTask(moveTask(cur, k, proj)); buzz();
           undoToast(`${label}(으)로 옮겼어요`, before); draw();
         }}, label)))),
+      (()=>{
+        // pick any day: the task moves into 오늘 서랍 on that date, from whichever drawer it was in
+        const di = h('input',{id:'sheet-date', type:'date', value: t.folder==='daily' ? (t.date || today()) : '', 'aria-label':'날짜로 옮기기'});
+        di.addEventListener('change', ()=>{
+          if (!di.value) return;
+          saveTitle();
+          const cur = S.tasks.get(id), before = snap([id]);
+          if (cur.folder==='daily' && cur.date===di.value) return;
+          putTask({...cur, folder:'daily', date:di.value, project:null, order: topKey(listOf('daily',{date:di.value}))}); buzz();
+          undoToast(`${rel(di.value) || md(di.value)}(으)로 옮겼어요`, before); draw();
+        });
+        return h('label',{class:'field'}, h('span',null,'날짜로 옮기기'), di);
+      })(),
       dueEditor(t, v=>{ saveTitle(); putTask({...S.tasks.get(id), due:v}); draw(); }));
-    if (t.folder==='daily'){
-      const di = h('input',{id:'sheet-date', type:'date', value:t.date || today()});
-      di.addEventListener('change', ()=>{ if (di.value){ saveTitle(); putTask({...S.tasks.get(id), date:di.value}); draw(); } });
-      sheet.append(h('label',{class:'field'}, h('span',null,'할 날짜'), di));
-    }
     if (t.folder==='project'){
       const sel = h('select',{id:'sheet-proj'}, S.projects.map(p=>h('option',{value:p.id}, p.name)), h('option',{value:'__new'}, '+ 새 프로젝트 만들기'));
       sel.value = projExists(t.project) ? t.project : '';
