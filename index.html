@@ -225,6 +225,10 @@ li.addrow input:focus{outline:none}
 .swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;justify-items:center}
 .palette{display:flex;flex-direction:column;gap:8px}
 .pallabel{font-size:12px;color:var(--fg-3)}
+.customsw{display:flex;align-items:center;gap:12px;position:relative;cursor:pointer;font-size:14px;color:var(--fg-2);padding:4px 0}
+.customsw input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.customsw .sw{flex:none}
+.customsw[aria-pressed="true"] .sw{box-shadow:0 0 0 3px var(--sheet),0 0 0 5px var(--c)}
 .pallabel:not(:first-child){margin-top:6px}
 .sw{width:38px;height:38px;border-radius:10px;border:0;background:var(--c)}
 .sw[aria-pressed="true"]{box-shadow:0 0 0 3px var(--sheet),0 0 0 5px var(--c)}
@@ -284,9 +288,15 @@ const ORDER = ['daily','project','asap','someday','bucket','hold'];
 const NEON = ['--n1','--n2','--n3','--n4','--n5','--n6','--n7','--n8','--n9','--n10','--n11','--n12'];
 const CALM = ['--f-daily','--f-project','--f-asap','--f-someday','--f-bucket','--f-hold','--f-c1','--f-c2','--f-c3','--f-c4','--f-c5','--f-c6'];
 const COLORS = [...NEON, ...CALM];
-const isNeon = c => /^--n\d/.test(c || '');
-/* neon fills are bright, so text on them goes dark */
-const cstyle = c => `--c:var(${c})` + (isNeon(c) ? ';--on:#161616' : '');
+/* a color is a palette token ('--n1') or a hex the user picked freely ('#7a5cff') */
+const cssc = c => (c && c[0]==='#') ? c : `var(${c})`;
+const isNeon = c => {
+  if (/^--n\d/.test(c || '')) return true;
+  if (!c || c[0] !== '#') return false;
+  const n = parseInt(c.slice(1), 16), r = n>>16 & 255, g = n>>8 & 255, b = n & 255;
+  return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.62;   // light color → dark text on it
+};
+const cstyle = c => `--c:${cssc(c)}` + (isNeon(c) ? ';--on:#161616' : '');
 const LSKEY = 'todo-drawer.v1', FSKEY = 'todo-drawer.fs', THKEY = 'todo-drawer.theme', FTKEY = 'todo-drawer.font';
 const IN_CLAUDE = !!(window.claude && window.claude.use);
 const NN = 'https://cdn.jsdelivr.net/gh/projectnoonnu/';
@@ -458,7 +468,7 @@ const folderIds = () => {
   const saved = (S.order||[]).filter(id => id!=='daily' && base.includes(id));
   return ['daily', ...saved, ...base.filter(id => id!=='daily' && !saved.includes(id))];  // 오늘 always first
 };
-const cvar = f => `var(${info(f).c})`;
+const cvar = f => cssc(info(f).c);
 const all = () => [...S.tasks.values()].filter(t=>!t.deleted);
 const key = t => (t.order ?? t.createdAt ?? 0);
 const byKey = (a,b) => key(a)-key(b) || (a.createdAt||0)-(b.createdAt||0);
@@ -779,7 +789,7 @@ function projBadge(t, opts){
   if (opts.inProject===t.project) return null;               // already inside that project's group
   if (opts.showFolder && t.folder==='project') return null;  // the place label already says it
   const c = projColor(t.project);
-  return h('span',{class: isNeon(c) ? 'pbadge neon' : 'pbadge', style:`--c:var(${c})`}, projName(t.project));
+  return h('span',{class: isNeon(c) ? 'pbadge neon' : 'pbadge', style:`--c:${cssc(c)}`}, projName(t.project));
 }
 function taskLi(t, opts={}){
   const meta = [];
@@ -905,7 +915,7 @@ function renderProjects(main){
     const its = items.filter(t => g.id ? t.project===g.id : (t.folder==='project' && !projExists(t.project)));
     const left = its.filter(t=>!t.done).length;
     main.append(h('section',{class:'pgroup'},
-      h('div',{class:'shead'}, h('h2',null, g.c ? h('span',{class:'pdot', style:`--c:var(${g.c})`}) : null, g.name, h('small',null, left ? `${left}개 남음` : '')),
+      h('div',{class:'shead'}, h('h2',null, g.c ? h('span',{class:'pdot', style:`--c:${cssc(g.c)}`}) : null, g.name, h('small',null, left ? `${left}개 남음` : '')),
         g.id ? h('div',{class:'acts'}, h('button',{class:'ib', 'aria-label':`${g.name} 설정`, html:ICON.dots, onclick:()=>openProjectSheet(g.id)})) : null),
       listBlock({id:'p-'+(g.id||'none'), folder:'project', project:g.id, items:its, add:!!g.id, liOpts:{inProject:g.id}})));
   });
@@ -1233,9 +1243,18 @@ function swatchPicker(start, onPick){
     box.innerHTML='';
     [['네온', NEON], ['차분한 색', CALM]].forEach(([label, list])=>{
       const sw = h('div',{class:'swatches'});
-      list.forEach((c,i)=>sw.append(h('button',{type:'button', class:'sw', style:`--c:var(${c})`, 'aria-pressed':String(color===c), 'aria-label':`${label} ${i+1}`, onclick:()=>{ color=c; onPick(c); draw(); }})));
+      list.forEach((c,i)=>sw.append(h('button',{type:'button', class:'sw', style:`--c:${cssc(c)}`, 'aria-pressed':String(color===c), 'aria-label':`${label} ${i+1}`, onclick:()=>{ color=c; onPick(c); draw(); }})));
       box.append(h('div',{class:'pallabel'}, label), sw);
     });
+    // any color: the phone's full color picker (grid, spectrum, sliders)
+    const custom = color && color[0]==='#';
+    const inp = h('input',{type:'color', id:'pal-custom', value: custom ? color : '#7a5cff', 'aria-label':'색 직접 고르기'});
+    inp.addEventListener('input', ()=>{ color = inp.value; onPick(color); });
+    inp.addEventListener('change', ()=>{ color = inp.value; onPick(color); draw(); });
+    box.append(h('div',{class:'pallabel'}, '직접 고르기'),
+      h('label',{class:'customsw', 'aria-pressed':String(custom)},
+        h('span',{class:'sw', style:`--c:${custom ? color : 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)'};background:var(--c)`}), inp,
+        h('span',null, custom ? `${color.toUpperCase()} · 눌러서 바꾸기` : '모든 색 보기')));
   };
   draw(); return box;
 }
