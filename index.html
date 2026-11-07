@@ -116,6 +116,7 @@ li.starred .txt{font-weight:600}
 li.done .txt{text-decoration:line-through;color:var(--fg-3)}
 li.done .box{border-color:var(--fg-3)}
 .due{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;padding:0 7px;border-radius:99px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+.when{display:inline-block;font-size:12.5px;font-weight:400;color:var(--fg-3);margin-left:7px;vertical-align:1px;white-space:nowrap}
 .pbadge{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;padding:0 7px;border-radius:99px;margin-left:6px;vertical-align:1px;white-space:nowrap;color:var(--c);box-shadow:inset 0 0 0 1px var(--c);background:color-mix(in srgb, var(--c) 13%, transparent)}
 .pbadge.neon{background:var(--c);color:#161616;box-shadow:none}
 .due.over{background:var(--star-soft);color:var(--star)}
@@ -794,7 +795,6 @@ function projBadge(t, opts){
 function taskLi(t, opts={}){
   const meta = [];
   if (opts.showFolder) meta.push(h('span',null, placeLabel(t)));
-  if (opts.inProject && t.folder!=='project') meta.push(h('span',null, placeLabel(t)));
   const r = t.routine && S.routines.get(t.routine);
   if (r) meta.push(h('span',null, h('span',{html:ICON.repeat}), ' ', ruleText(r.rule)));
   if (t.done && t.doneAt) meta.push(h('span',null, `${md(t.doneAt)} 완료`));
@@ -804,7 +804,7 @@ function taskLi(t, opts={}){
       h('input',{type:'checkbox', id:cid, checked:!!t.done, onchange:()=>toggleDone(t.id), 'aria-label':(t.done?'완료 취소: ':'완료: ')+t.title}),
       h('span',{class:'box', html:ICON.check})),
     h('button',{class:'ttl', onclick:()=>{ if (Date.now()-lastGesture < 400) return; openTaskSheet(t.id); }},
-      h('span',{class:'txt'}, t.title, projBadge(t, opts), dueTag(t)), meta.length ? h('span',{class:'meta'}, meta) : null),
+      h('span',{class:'txt'}, t.title, projBadge(t, opts), (opts.inProject && t.folder!=='project' && !t.done) ? h('span',{class:'when'}, placeLabel(t)) : null, dueTag(t)), meta.length ? h('span',{class:'meta'}, meta) : null),
     h('button',{class:'star', 'aria-pressed':String(!!t.star), 'aria-label': t.star ? '중요 표시 해제' : '중요 표시', html:ICON.star, onclick:()=>toggleStar(t.id)}));
 }
 
