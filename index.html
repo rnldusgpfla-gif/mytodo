@@ -25,7 +25,7 @@ img{max-width:100%}
 /* Layout: plain single column like a stock tasks app — centered title with search and settings, underline tabs with count pills, compact rows with a square box on the left and a star on the right */
 :root{
   --bg:#FFFFFF; --fg:#1F1F1F; --fg-2:#5F6368; --fg-3:#A0A5AB; --line:#E6E8EB; --pill:#E9EBEE; --hover:#F4F6F8;
-  --accent:#1F5BD6; --accent-soft:#E8EFFD; --star:#E2352F; --star-soft:#FDECEB; --warn:#C05A00; --warn-soft:#FFF1E2;
+  --accent:#1F5BD6; --accent-soft:#E8EFFD; --star:#E2352F; --star-soft:#FDECEB; --pink:#FF1F8E; --warn:#C05A00; --warn-soft:#FFF1E2;
   --scrim:rgba(20,22,26,.38); --sheet:#FFFFFF;
   --f-daily:#1F5BD6; --f-project:#188038; --f-asap:#E8710A; --f-someday:#7B61D1; --f-bucket:#C49000; --f-hold:#80868B;
   --f-c1:#D93F7A; --f-c2:#0F8C9C; --f-c3:#6A7F1E; --f-c4:#A0522D; --f-c5:#3F51B5; --f-c6:#546E7A;
@@ -34,7 +34,7 @@ img{max-width:100%}
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#141517; --fg:#E8EAED; --fg-2:#9AA0A6; --fg-3:#62676D; --line:#2A2D31; --pill:#2C2F33; --hover:#1D1F22;
-  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --warn:#FFAE66; --warn-soft:#3A2A18;
+  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --pink:#FF5CAD; --warn:#FFAE66; --warn-soft:#3A2A18;
   --scrim:rgba(0,0,0,.6); --sheet:#1E2023;
   --f-daily:#8AB4F8; --f-project:#5BC27E; --f-asap:#FF9A4D; --f-someday:#A895F0; --f-bucket:#E8BD3A; --f-hold:#9AA0A6;
   --f-c1:#F07AA8; --f-c2:#4CC4D3; --f-c3:#A8C25A; --f-c4:#E09468; --f-c5:#8C9CF0; --f-c6:#93A6B0;
@@ -42,7 +42,7 @@ img{max-width:100%}
 }}
 :root[data-theme="dark"]{
   --bg:#141517; --fg:#E8EAED; --fg-2:#9AA0A6; --fg-3:#62676D; --line:#2A2D31; --pill:#2C2F33; --hover:#1D1F22;
-  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --warn:#FFAE66; --warn-soft:#3A2A18;
+  --accent:#8AB4F8; --accent-soft:#1F2A3F; --star:#FF6A62; --star-soft:#3A2220; --pink:#FF5CAD; --warn:#FFAE66; --warn-soft:#3A2A18;
   --scrim:rgba(0,0,0,.6); --sheet:#1E2023;
   --f-daily:#8AB4F8; --f-project:#5BC27E; --f-asap:#FF9A4D; --f-someday:#A895F0; --f-bucket:#E8BD3A; --f-hold:#9AA0A6;
   --f-c1:#F07AA8; --f-c2:#4CC4D3; --f-c3:#A8C25A; --f-c4:#E09468; --f-c5:#8C9CF0; --f-c6:#93A6B0;
@@ -68,12 +68,14 @@ html.dragging-now, html.dragging-now *{-webkit-user-select:none;user-select:none
 .logo .logo-d{display:none}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logo .logo-l{display:none} :root:not([data-theme="light"]) .logo .logo-d{display:block}}
 :root[data-theme="dark"] .logo .logo-l{display:none} :root[data-theme="dark"] .logo .logo-d{display:block}
-.tabs{display:flex;flex-wrap:wrap;column-gap:0;row-gap:0}
+.tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-padding-inline:16px}
 .tabs::-webkit-scrollbar{display:none}
 .tab{flex:none;border:0;background:none;padding:8px 9px 10px;font-size:15px;color:var(--fg-2);display:flex;align-items:center;gap:6px;position:relative;white-space:nowrap}
 .tab .n{background:var(--pill);color:var(--fg-2);font-size:12px;font-weight:600;border-radius:99px;padding:1px 7px;font-variant-numeric:tabular-nums}
 .tab[aria-selected="true"]{color:var(--accent);font-weight:600}
 .tab[aria-selected="true"]::after{content:"";position:absolute;left:6px;right:6px;bottom:0;height:1.5px;border-radius:1px;background:var(--accent)}
+.tab.today[aria-selected="true"]{color:var(--pink)}
+.tab.today[aria-selected="true"]::after{background:var(--pink)}
 
 main{padding-block:4px 120px}
 
@@ -194,6 +196,14 @@ li.addrow input:focus{outline:none}
 .field > span{font-size:13px;color:var(--fg-2)}
 .field textarea{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:16px;width:100%;min-height:96px;font-family:ui-monospace,Menlo,monospace;resize:vertical}
 .field input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:44px;text-align:left}
+.field input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
+.field input[type=date]::-webkit-datetime-edit{padding:0}
+.recordrow{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;display:flex;align-items:center;gap:12px;padding:12px 14px;text-align:left}
+.recordrow .ic{width:20px;height:20px;color:var(--fg-2);display:grid}
+.recordrow b{font-weight:600;font-size:15px}
+.recordrow span.sub{font-size:13px;color:var(--fg-3)}
+.recordrow .grow{flex:1;min-width:0;display:flex;flex-direction:column}
+.recordrow .chev{width:20px;color:var(--fg-3);display:grid}
 .field input,.field select{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:16px;width:100%}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:var(--sheet);border-radius:99px;padding:6px 12px;font-size:14px;display:flex;align-items:center;gap:6px}
@@ -717,11 +727,10 @@ function counts(){
 function renderTabs(){
   const nav = document.getElementById('tabs'); nav.innerHTML='';
   const c = counts();
-  const sel = id => S.view===id || (id==='home' && (S.view==='starred' || S.view==='routines'));
-  const tab = (id, label, n) => h('button',{class:'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n ? h('span',{class:'n'}, n) : null);
+  const sel = id => S.view===id || (id==='home' && (S.view==='starred' || S.view==='routines' || S.view==='record'));
+  const tab = (id, label, n) => h('button',{class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n ? h('span',{class:'n'}, n) : null);
   nav.append(tab('home','서랍'));
   folderIds().forEach(f => nav.append(tab(f, info(f).name, c[f])));
-  nav.append(tab('record','기록'));
 }
 
 function dueTag(t){
@@ -1177,6 +1186,10 @@ function openSettings(){
     sheet.innerHTML='';
     ensureAllFaces();
     sheet.append(...[h('div',{class:'grab'}),
+      h('button',{type:'button', class:'recordrow', onclick:()=>{ closeLayer(); go('record'); }},
+        h('span',{class:'ic', html:ICON.book}),
+        h('span',{class:'grow'}, h('b',null,'기록'), h('span',{class:'sub'}, `지금까지 끝낸 일 ${all().filter(x=>x.done).length}개`)),
+        h('span',{class:'chev', html:ICON.chev})),
       h('div',{class:'field'}, h('span',null,'글자 크기'),
         h('div',{class:'chips'}, sizes.map(([k,l])=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(fsPref===k), onclick:()=>{
           fsPref = k; document.documentElement.dataset.fs = k; try{ localStorage.setItem(FSKEY, k); }catch(e){}
