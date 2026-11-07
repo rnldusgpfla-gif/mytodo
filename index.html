@@ -115,6 +115,7 @@ li.starred .txt{font-weight:600}
 li.done .txt{text-decoration:line-through;color:var(--fg-3)}
 li.done .box{border-color:var(--fg-3)}
 .due{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;padding:0 7px;border-radius:99px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+.pbadge{display:inline-block;font-size:12px;font-weight:600;line-height:1.5;padding:0 7px;border-radius:99px;margin-left:6px;vertical-align:1px;white-space:nowrap;color:var(--c);box-shadow:inset 0 0 0 1px var(--c);background:color-mix(in srgb, var(--c) 13%, transparent)}
 .due.over{background:var(--star-soft);color:var(--star)}
 .due.soon{background:var(--warn-soft);color:var(--warn)}
 .due.near{background:var(--accent-soft);color:var(--accent)}
@@ -165,9 +166,13 @@ li.addrow input:focus{outline:none}
 .drawers .chev{display:grid;width:20px;color:var(--fg-3)}
 .drawers .addd .ic{background:none;border:1.5px dashed var(--line);color:var(--accent)}
 .drawers .addd b{color:var(--accent)}
+.drawers{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.drawers > li{position:relative;background:var(--bg);transition:transform .16s ease;touch-action:pan-y}
+.drawers > li.dragging{transition:none;z-index:3;box-shadow:var(--lift);border-radius:12px;background:var(--sheet)}
 .drawers .sep{height:1px;background:var(--line);margin:6px 16px}
 
 .pgroup + .pgroup{border-top:1px solid var(--line)}
+.pdot{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none}
 .pgroup .shead h2{font-size:16px;font-weight:600}
 
 /* record */
@@ -380,7 +385,7 @@ let fsPref = 'm';
 try{ fsPref = localStorage.getItem(FSKEY) || 'm'; }catch(e){}
 document.documentElement.dataset.fs = fsPref;
 const S = {
-  tasks:new Map(), routines:new Map(), projects:[], drawers:[], meta:{},
+  tasks:new Map(), routines:new Map(), projects:[], drawers:[], meta:{}, order:[],
   view:'daily', viewDate:today(), day:today(), q:'',
   mode:'local', loaded:false, rolloverShown:false, recCount:30, openDone:{},
 };
@@ -390,7 +395,7 @@ let appRef = null;
 function loadLocal(){ try{ const r = localStorage.getItem(LSKEY); return r ? JSON.parse(r) : null; }catch(e){ return null; } }
 function saveLocal(){
   if (S.mode!=='local') return;
-  try{ localStorage.setItem(LSKEY, JSON.stringify({tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta})); }catch(e){}
+  try{ localStorage.setItem(LSKEY, JSON.stringify({tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order})); }catch(e){}
 }
 const pend = new Map(), running = new Set();
 function write(key, ref, data){ pend.set(key,{ref,data}); if (!running.has(key)) flush(key); }
@@ -412,7 +417,7 @@ function putTask(t){ S.tasks.set(t.id,t); if (S.mode==='db') write('t:'+t.id, ap
 function dropTask(id){ S.tasks.delete(id); if (S.mode==='db') write('t:'+id, appRef.collection('tasks').doc(id), null); else saveLocal(); }
 function putRoutine(r){ S.routines.set(r.id,r); if (S.mode==='db') write('r:'+r.id, appRef.collection('routines').doc(r.id), r); else saveLocal(); }
 function dropRoutine(id){ S.routines.delete(id); if (S.mode==='db') write('r:'+id, appRef.collection('routines').doc(id), null); else saveLocal(); }
-function putApp(){ if (S.mode==='db') write('app', appRef, {projects:S.projects, drawers:S.drawers, meta:S.meta}); else saveLocal(); }
+function putApp(){ if (S.mode==='db') write('app', appRef, {projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order}); else saveLocal(); }
 
 /* ---------- helpers ---------- */
 function h(tag, props, ...kids){
@@ -437,7 +442,11 @@ function info(f){
   if (m){ if (m.name) base.name = m.name; if (m.desc != null) base.desc = m.desc; if (m.c) base.c = m.c; }
   return base;
 }
-const folderIds = () => [...ORDER, ...S.drawers.map(d=>d.id)];
+const folderIds = () => {
+  const base = [...ORDER, ...S.drawers.map(d=>d.id)];
+  const saved = (S.order||[]).filter(id => id!=='daily' && base.includes(id));
+  return ['daily', ...saved, ...base.filter(id => id!=='daily' && !saved.includes(id))];  // 오늘 always first
+};
 const cvar = f => `var(${info(f).c})`;
 const all = () => [...S.tasks.values()].filter(t=>!t.deleted);
 const key = t => (t.order ?? t.createdAt ?? 0);
@@ -503,9 +512,9 @@ function toggleStar(id){
 function moveTask(t, dest, project){
   if (DAY_DESTS[dest]){
     const date = DAY_DESTS[dest]();
-    return {...t, folder:'daily', date, project:null, order: topKey(listOf('daily',{date}))};
+    return {...t, folder:'daily', date, order: topKey(listOf('daily',{date}))};
   }
-  return {...t, folder:dest, date:null, project: dest==='project' ? project : null, order: topKey(listOf(dest,{project}))};
+  return {...t, folder:dest, date:null, project: dest==='project' ? project : (t.project || null), order: topKey(listOf(dest,{project}))};
 }
 function removeTask(id){
   const t = S.tasks.get(id); if (!t) return;
@@ -513,10 +522,11 @@ function removeTask(id){
   if (t.routine) putTask({...t, deleted:true}); else dropTask(id);
   render(); undoToast('삭제했어요', before);
 }
-function ensureProject(name){
+const projColor = id => { const p = S.projects.find(x=>x.id===id); return (p && p.c) || '--f-project'; };
+function ensureProject(name, color){
   name = (name||'').trim() || '새 프로젝트';
   const ex = S.projects.find(p=>p.name===name); if (ex) return ex.id;
-  const p = {id:'p'+uid(), name, createdAt:Date.now()};
+  const p = {id:'p'+uid(), name, c: color || COLORS[(S.projects.length + 1) % COLORS.length], createdAt:Date.now()};
   S.projects = [...S.projects, p]; putApp(); return p.id;
 }
 function reorder(movedId, prevId, nextId, ids){
@@ -657,7 +667,7 @@ window.addEventListener('pointermove', e=>{
   D.lastX = e.clientX; D.lastY = e.clientY;
   const dx = e.clientX - D.x, dy = e.clientY - D.y;
   if (!D.mode){
-    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)*1.3){ clearTimeout(D.timer); if (dx > 0) beginSwipe(); else beginSwipeLeft(); }
+    if (!D.opts.noSwipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)*1.3){ clearTimeout(D.timer); if (dx > 0) beginSwipe(); else beginSwipeLeft(); }
     else if (D.type==='mouse'){ if (Math.hypot(dx,dy) > 6) beginDrag(); }
     else if (Math.hypot(dx,dy) > 10){ clearTimeout(D.timer); D = null; }
     return;
@@ -689,7 +699,7 @@ function endGesture(){
   if (d.target !== d.idx){
     const ids = d.rows.map(r => r.dataset.id);
     const [m] = ids.splice(d.idx,1); ids.splice(d.target,0,m);
-    reorder(m, ids[d.target-1] || null, ids[d.target+1] || null, ids);
+    (d.opts.onReorder || reorder)(m, ids[d.target-1] || null, ids[d.target+1] || null, ids);
   } else if (needRender){ needRender = false; render(); }
 }
 window.addEventListener('pointerup', endGesture);
@@ -753,9 +763,16 @@ function dueTag(t){
   else { label = `${md(t.due)}까지`; cls = 'far'; }
   return h('span',{class:'due '+cls}, label);
 }
+function projBadge(t, opts){
+  if (!t.project || !projExists(t.project) || t.done) return null;
+  if (opts.inProject===t.project) return null;               // already inside that project's group
+  if (opts.showFolder && t.folder==='project') return null;  // the place label already says it
+  return h('span',{class:'pbadge', style:`--c:var(${projColor(t.project)})`}, projName(t.project));
+}
 function taskLi(t, opts={}){
   const meta = [];
   if (opts.showFolder) meta.push(h('span',null, placeLabel(t)));
+  if (opts.inProject && t.folder!=='project') meta.push(h('span',null, placeLabel(t)));
   const r = t.routine && S.routines.get(t.routine);
   if (r) meta.push(h('span',null, h('span',{html:ICON.repeat}), ' ', ruleText(r.rule)));
   if (t.done && t.doneAt) meta.push(h('span',null, `${md(t.doneAt)} 완료`));
@@ -765,12 +782,12 @@ function taskLi(t, opts={}){
       h('input',{type:'checkbox', id:cid, checked:!!t.done, onchange:()=>toggleDone(t.id), 'aria-label':(t.done?'완료 취소: ':'완료: ')+t.title}),
       h('span',{class:'box', html:ICON.check})),
     h('button',{class:'ttl', onclick:()=>{ if (Date.now()-lastGesture < 400) return; openTaskSheet(t.id); }},
-      h('span',{class:'txt'}, t.title, dueTag(t)), meta.length ? h('span',{class:'meta'}, meta) : null),
+      h('span',{class:'txt'}, t.title, projBadge(t, opts), dueTag(t)), meta.length ? h('span',{class:'meta'}, meta) : null),
     h('button',{class:'star', 'aria-pressed':String(!!t.star), 'aria-label': t.star ? '중요 표시 해제' : '중요 표시', html:ICON.star, onclick:()=>toggleStar(t.id)}));
 }
 
 /* one list: always-empty first row, open tasks (drag + swipe), folded "완료됨" */
-function listBlock({id, folder, date, project, items, add=true}){
+function listBlock({id, folder, date, project, items, add=true, liOpts={}}){
   const frag = document.createDocumentFragment();
   const open = items.filter(t=>!t.done).sort(byKey);
   const done = items.filter(t=>t.done).sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
@@ -783,7 +800,7 @@ function listBlock({id, folder, date, project, items, add=true}){
     inp.addEventListener('blur', ()=>{ if (!rendering && inp.isConnected && inp.value.trim()) commit(); });
     addRow = h('li',{class:'addrow'}, h('label',{class:'chk', for:inp.id, 'aria-hidden':'true'}, h('span',{class:'box'})), inp);
   }
-  open.forEach(t => ul.append(taskLi(t)));
+  open.forEach(t => ul.append(taskLi(t, liOpts)));
   if (addRow) ul.append(addRow);
   const isDaily = folder==='daily';
   attachGestures(ul, {onSwipe: isDaily ? swipeToNextDay : swipeToToday, swipeLabel: isDaily ? '다음 날로' : '오늘로'});
@@ -792,7 +809,7 @@ function listBlock({id, folder, date, project, items, add=true}){
     const k = 'done:'+id, isOpen = S.openDone[k] ?? (folder==='daily');  // today's finished items start unfolded
     frag.append(h('button',{class:'fold', 'aria-expanded':String(isOpen), onclick:()=>{ S.openDone[k] = !isOpen; render(); }},
       h('span',{html:ICON.chev, style:'display:grid'}), `완료됨 (${done.length})`));
-    if (isOpen){ const du = h('ul',{class:'tasks'}); done.forEach(t=>du.append(taskLi(t))); frag.append(du); }
+    if (isOpen){ const du = h('ul',{class:'tasks'}); done.forEach(t=>du.append(taskLi(t, liOpts))); frag.append(du); }
   }
   return frag;
 }
@@ -810,14 +827,15 @@ function renderHome(main){
   const t = today(), c = counts();
   const dayAll = all().filter(x=>x.folder==='daily' && x.date===t);
   const dayDone = dayAll.filter(x=>x.done).length;
-  const row = (onclick, ic, name, subText, n) => h('li',null, h('button',{onclick}, ic,
+  const row = (onclick, ic, name, subText, n, dragId) => h('li',{'data-id': dragId || null}, h('button',{onclick:()=>{ if (Date.now()-lastGesture < 400) return; onclick(); }}, ic,
     h('span',{class:'nm'}, h('b',null,name), subText ? h('span',null,subText) : null),
     h('span',{class:'ct'}, n||''), h('span',{class:'chev', html:ICON.chev})));
   const ul = h('ul',{class:'drawers'});
   folderIds().forEach(f => {
     const sub = f==='daily' ? (dayAll.length ? `${mdw(t)} · ${dayDone}/${dayAll.length} 완료` : `${mdw(t)} · ${info(f).desc}`) : info(f).desc;
-    ul.append(row(()=>go(f), h('span',{class:'ic', style:`--c:${cvar(f)}`}, h('i')), info(f).name, sub, c[f]));
+    ul.append(row(()=>go(f), h('span',{class:'ic', style:`--c:${cvar(f)}`}, h('i')), info(f).name, sub, c[f], f==='daily' ? null : f));
   });
+  attachGestures(ul, {noSwipe:true, onReorder:(m, prev, next, ids)=>{ S.order = ids; putApp(); render(); }});
   ul.append(h('li',{class:'addd'}, h('button',{onclick:()=>openDrawerSheet()}, h('span',{class:'ic', html:ICON.plus}), h('span',{class:'nm'}, h('b',null,'서랍 추가'), h('span',null,'나만의 서랍을 만들어요')))));
   ul.append(h('li',{class:'sep', 'aria-hidden':'true'}));
   ul.append(row(()=>go('starred'), h('span',{class:'ic', style:'color:var(--star)', html:ICON.starFill}), '별표한 일', '모든 서랍의 중요한 일', all().filter(x=>x.star && !x.done).length));
@@ -867,17 +885,17 @@ function renderProjects(main){
   const I = info('project');
   main.append(h('div',{class:'shead'}, h('h2',null, I.name),
     h('div',{class:'acts'}, h('button',{class:'txtbtn', onclick:openNewProject}, '+ 새 프로젝트'), settingsBtn('project'))));
-  const items = all().filter(t=>t.folder==='project');
-  const groups = S.projects.map(p=>({id:p.id, name:p.name}));
-  if (items.some(t=>!projExists(t.project))) groups.push({id:null, name:'미분류'});
+  const items = all().filter(t=>t.folder==='project' || projExists(t.project));
+  const groups = S.projects.map(p=>({id:p.id, name:p.name, c:p.c || '--f-project'}));
+  if (items.some(t=>t.folder==='project' && !projExists(t.project))) groups.push({id:null, name:'미분류'});
   if (!groups.length){ main.append(h('p',{class:'hint'}, '프로젝트를 만들고 그 아래에 할 일을 넣어 보세요. 예: 이사 준비, 모바일 청첩장 만들기')); return; }
   groups.forEach(g=>{
-    const its = items.filter(t => g.id ? t.project===g.id : !projExists(t.project));
+    const its = items.filter(t => g.id ? t.project===g.id : (t.folder==='project' && !projExists(t.project)));
     const left = its.filter(t=>!t.done).length;
     main.append(h('section',{class:'pgroup'},
-      h('div',{class:'shead'}, h('h2',null, g.name, h('small',null, left ? `${left}개 남음` : '')),
+      h('div',{class:'shead'}, h('h2',null, g.c ? h('span',{class:'pdot', style:`--c:var(${g.c})`}) : null, g.name, h('small',null, left ? `${left}개 남음` : '')),
         g.id ? h('div',{class:'acts'}, h('button',{class:'ib', 'aria-label':`${g.name} 설정`, html:ICON.dots, onclick:()=>openProjectSheet(g.id)})) : null),
-      listBlock({id:'p-'+(g.id||'none'), folder:'project', project:g.id, items:its, add:!!g.id})));
+      listBlock({id:'p-'+(g.id||'none'), folder:'project', project:g.id, items:its, add:!!g.id, liOpts:{inProject:g.id}})));
   });
 }
 
@@ -1045,20 +1063,34 @@ function openTaskSheet(id){
           saveTitle();
           const cur = S.tasks.get(id), before = snap([id]);
           if (cur.folder==='daily' && cur.date===di.value) return;
-          putTask({...cur, folder:'daily', date:di.value, project:null, order: topKey(listOf('daily',{date:di.value}))}); buzz();
+          putTask({...cur, folder:'daily', date:di.value, order: topKey(listOf('daily',{date:di.value}))}); buzz();
           undoToast(`${rel(di.value) || md(di.value)}(으)로 옮겼어요`, before); draw();
         });
         return h('label',{class:'field'}, h('span',null,'날짜로 옮기기'), di);
       })(),
+      (()=>{
+        // link to a project: the task keeps its date/drawer and shows a colored project badge
+        const on = projExists(t.project) || t.folder==='project';
+        const wrap = h('div',{class:'field'}, h('span',null,'프로젝트'),
+          h('div',{class:'chips'}, h('button',{type:'button', class:'chip plain', 'aria-pressed':String(on), onclick:()=>{
+            saveTitle();
+            const cur = S.tasks.get(id);
+            if (on){ putTask({...cur, project:null}); }
+            else if (S.projects.length){ putTask({...cur, project:S.projects[0].id}); }
+            else { putTask({...cur, project:ensureProject('새 프로젝트')}); toast('새 프로젝트를 만들었어요. 이름은 프로젝트 탭에서 바꿀 수 있어요'); }
+            draw();
+          }}, on ? '✓ 프로젝트 표기하기' : '프로젝트 표기하기')));
+        if (on){
+          const sel = h('select',{id:'sheet-proj', 'aria-label':'프로젝트 고르기'}, h('option',{value:'', disabled:true}, '프로젝트 고르기'), S.projects.map(p=>h('option',{value:p.id}, p.name)), h('option',{value:'__new'}, '+ 새 프로젝트 만들기'));
+          sel.value = projExists(t.project) ? t.project : '';
+          const np = h('input',{id:'sheet-newproj', type:'text', placeholder:'새 프로젝트 이름 적고 완료', hidden:true});
+          sel.addEventListener('change', ()=>{ if (sel.value==='__new'){ np.hidden=false; np.focus(); return; } saveTitle(); putTask({...S.tasks.get(id), project:sel.value}); draw(); });
+          np.addEventListener('change', ()=>{ if (np.value.trim()){ saveTitle(); const pid = ensureProject(np.value); putTask({...S.tasks.get(id), project:pid}); draw(); } });
+          wrap.append(sel, np);
+        }
+        return wrap;
+      })(),
       dueEditor(t, v=>{ saveTitle(); putTask({...S.tasks.get(id), due:v}); draw(); }));
-    if (t.folder==='project'){
-      const sel = h('select',{id:'sheet-proj'}, S.projects.map(p=>h('option',{value:p.id}, p.name)), h('option',{value:'__new'}, '+ 새 프로젝트 만들기'));
-      sel.value = projExists(t.project) ? t.project : '';
-      const np = h('input',{id:'sheet-newproj', type:'text', placeholder:'새 프로젝트 이름', hidden:true});
-      sel.addEventListener('change', ()=>{ if (sel.value==='__new'){ np.hidden=false; np.focus(); return; } putTask({...S.tasks.get(id), project:sel.value}); });
-      np.addEventListener('change', ()=>{ if (np.value.trim()){ const pid = ensureProject(np.value); putTask({...S.tasks.get(id), project:pid}); draw(); } });
-      sheet.append(h('div',{class:'field'}, h('span',null,'프로젝트'), sel, np));
-    }
     const r = t.routine && S.routines.get(t.routine);
     sheet.append(ruleEditor(r ? r.rule : null, t.date || today(), nr=>{
       saveTitle();
@@ -1143,12 +1175,20 @@ function openDrawerSheet(fid){
   if (!editing) setTimeout(()=>name.focus(), 50);
 }
 
+function swatchPicker(start, onPick){
+  let color = start;
+  const sw = h('div',{class:'swatches'});
+  const draw = () => { sw.innerHTML=''; COLORS.forEach((c,i)=>sw.append(h('button',{type:'button', class:'sw', style:`--c:var(${c})`, 'aria-pressed':String(color===c), 'aria-label':`색 ${i+1}`, onclick:()=>{ color=c; onPick(c); draw(); }}))); };
+  draw(); return sw;
+}
 function openNewProject(){
+  let color = COLORS[(S.projects.length + 1) % COLORS.length];
   const name = h('input',{id:'newproj-name', type:'text', placeholder:'예: 이사 준비', 'aria-label':'새 프로젝트 이름'});
-  const make = () => { if (!name.value.trim()) return; ensureProject(name.value); closeLayer(); };
+  const make = () => { if (!name.value.trim()) return; ensureProject(name.value, color); closeLayer(); };
   name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); make(); } });
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'새 프로젝트'},
     h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'새 프로젝트 이름'), name),
+    h('div',{class:'field'}, h('span',null,'색 (할 일 옆 프로젝트 뱃지 색)'), swatchPicker(color, c=>{ color = c; })),
     h('div',{class:'row'}, h('button',{class:'btn', type:'button', onclick:closeLayer}, '취소'), h('button',{class:'btn pri', type:'button', onclick:make}, '만들기'))));
   setTimeout(()=>name.focus(), 50);
 }
@@ -1156,21 +1196,25 @@ function openProjectSheet(pid){
   const p = S.projects.find(x=>x.id===pid); if (!p) return;
   const name = h('input',{id:'proj-name', type:'text', value:p.name, 'aria-label':'프로젝트 이름'});
   const count = all().filter(t=>t.folder==='project' && t.project===pid).length;
+  let color = p.c || '--f-project';
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'프로젝트 설정'},
     h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'프로젝트 이름'), name),
+    h('div',{class:'field'}, h('span',null,'색 (할 일 옆 프로젝트 뱃지 색)'), swatchPicker(color, c=>{ color = c; })),
     h('div',{class:'row'},
       h('button',{class:'btn danger', type:'button', onclick:()=>{
         if (count){ toast(`할 일 ${count}개를 먼저 옮기거나 지워 주세요`); return; }
+        all().filter(t=>t.project===pid).forEach(t=>putTask({...t, project:null}));
         S.projects = S.projects.filter(x=>x.id!==pid); putApp(); closeLayer(); toast('프로젝트를 지웠어요');
       }}, '프로젝트 삭제'),
       h('button',{class:'btn pri', type:'button', onclick:()=>{
-        const v = name.value.trim(); if (v && v!==p.name){ S.projects = S.projects.map(x=>x.id===pid ? {...x, name:v} : x); putApp(); }
+        const v = name.value.trim() || p.name;
+        if (v!==p.name || color!==(p.c||'--f-project')){ S.projects = S.projects.map(x=>x.id===pid ? {...x, name:v, c:color} : x); putApp(); }
         closeLayer();
       }}, '저장'))));
 }
 
 function backupText(){
-  return JSON.stringify({app:'my-to-do-list', v:1, savedAt:new Date().toISOString(), tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta});
+  return JSON.stringify({app:'my-to-do-list', v:1, savedAt:new Date().toISOString(), tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order});
 }
 function importBackup(text){
   let d;
@@ -1328,7 +1372,7 @@ const local = loadLocal();
 function applyLocal(d){
   S.tasks = new Map((d.tasks||[]).map(t=>[t.id,t]));
   S.routines = new Map((d.routines||[]).map(r=>[r.id,r]));
-  S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {};
+  S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {}; S.order = d.order || [];
 }
 if (local) applyLocal(local);
 render();
@@ -1363,7 +1407,7 @@ async function connect(){
         migrated = true;
         local.tasks.forEach(t=>putTask(t));
         (local.routines||[]).forEach(r=>putRoutine(r));
-        S.projects = local.projects || []; S.drawers = local.drawers || []; S.meta = local.meta || {}; putApp();
+        S.projects = local.projects || []; S.drawers = local.drawers || []; S.meta = local.meta || {}; S.order = local.order || []; putApp();
       }
     }
     rerender(); ready();
@@ -1380,7 +1424,7 @@ async function connect(){
   appRef.onSnapshot(s=>{
     if (!pend.has('app') && !(migrated && !s.exists)){
       const d = s.exists ? s.data() : {};
-      S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {};
+      S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {}; S.order = d.order || [];
     }
     if (!s.metadata.fromCache) gotApp = true;
     rerender(); ready();
