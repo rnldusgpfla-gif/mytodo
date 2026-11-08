@@ -201,6 +201,10 @@ li.addrow input:focus{outline:none}
 .drawers{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .drawers > li{position:relative;background:var(--bg);transition:transform .16s ease;touch-action:pan-y}
 .drawers > li.dragging{transition:none;z-index:3;box-shadow:var(--lift);border-radius:12px;background:var(--sheet)}
+.drawers > li{display:flex;align-items:center}
+.drawers > li > button.main{flex:1;min-width:0}
+.drawers .rowedit{flex:none;width:48px;min-height:48px;padding:0;margin-right:max(4px,env(safe-area-inset-right,0px));display:grid;place-items:center;color:var(--fg-3);border-radius:50%}
+.drawers .rowedit svg{width:22px;height:22px}
 .drawers .sep{height:1px;background:var(--line);margin:6px 16px}
 
 .pgroup + .pgroup{border-top:1px solid var(--line)}
@@ -235,7 +239,8 @@ li.addrow input:focus{outline:none}
 .field input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:44px;text-align:left}
 .field input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 .field input[type=date]::-webkit-datetime-edit{padding:0}
-.recordrow + .recordrow{margin-top:-8px}
+.setpage{display:flex;flex-direction:column;gap:18px;padding-bottom:24px}
+.recordrow + .recordrow{margin-top:-10px}
 .recordrow{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;display:flex;align-items:center;gap:12px;padding:12px 14px;text-align:left}
 .recordrow .ic{width:20px;height:20px;color:var(--fg-2);display:grid}
 .recordrow b{font-weight:600;font-size:15px}
@@ -633,7 +638,7 @@ let D = null, lastGesture = 0, needRender = false, rendering = false;
 function attachGestures(ul, opts){
   ul.addEventListener('pointerdown', e=>{
     const li = e.target.closest('li[data-id]');
-    if (!li || li.parentNode!==ul || e.button>0 || e.target.closest('.chk,.star')) return;
+    if (!li || li.parentNode!==ul || e.button>0 || e.target.closest('.chk,.star,.rowedit')) return;
     D = {li, ul, opts, x:e.clientX, y:e.clientY, lastX:e.clientX, lastY:e.clientY, sy:window.scrollY, type:e.pointerType, mode:null};
     if (e.pointerType!=='mouse') D.timer = setTimeout(()=>{ if (D && !D.mode) beginDrag(); }, 380);
   });
@@ -782,6 +787,7 @@ function render(){
   else if (v==='rtrack') renderRoutineTracking(main);
   else if (v==='record') renderRecord(main);
   else if (v==='search') renderSearch(main);
+  else if (v==='settings') renderSettings(main);
   else if (FOLDERS[v] || findDrawer(v)) renderFolder(main, v);
   else { S.view = 'home'; renderTabs(); renderHome(main); }
   if (keep){ const el = document.getElementById(keep.id); if (el){ el.value = keep.v; el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s, keep.e); }catch(_){} if (el.id.startsWith('add-')) el.scrollIntoView({block:'nearest'}); } }
@@ -889,13 +895,14 @@ function renderHome(main){
   const t = today(), c = counts();
   const dayAll = all().filter(x=>x.folder==='daily' && x.date===t && !isRoutineTask(x));
   const dayDone = dayAll.filter(x=>x.done).length;
-  const row = (onclick, ic, name, subText, n, dragId) => h('li',{'data-id': dragId || null}, h('button',{onclick:()=>{ if (Date.now()-lastGesture < 400) return; onclick(); }}, ic,
+  const row = (onclick, ic, name, subText, n, dragId, onEdit) => h('li',{'data-id': dragId || null}, h('button',{class:'main', onclick:()=>{ if (Date.now()-lastGesture < 400) return; onclick(); }}, ic,
     h('span',{class:'nm'}, h('b',null,name), subText ? h('span',null,subText) : null),
-    h('span',{class:'ct'}, n||''), h('span',{class:'chev', html:ICON.chev})));
+    h('span',{class:'ct'}, n||''), onEdit ? null : h('span',{class:'chev', html:ICON.chev})),
+    onEdit ? h('button',{class:'rowedit', 'aria-label':`${name} 이름·설명·색 바꾸기`, html:ICON.dots, onclick:()=>{ if (Date.now()-lastGesture < 400) return; onEdit(); }}) : null);
   const ul = h('ul',{class:'drawers'});
   folderIds().forEach(f => {
     const sub = f==='daily' ? (dayAll.length ? `${mdw(t)} · ${dayDone}/${dayAll.length} 완료` : `${mdw(t)} · ${info(f).desc}`) : info(f).desc;
-    ul.append(row(()=>go(f), h('span',{class:'ic', style:`--c:${cvar(f)}`}, h('i')), info(f).name, sub, c[f], f==='daily' ? null : f));
+    ul.append(row(()=>go(f), h('span',{class:'ic', style:`--c:${cvar(f)}`}, h('i')), info(f).name, sub, c[f], f==='daily' ? null : f, ()=>openDrawerSheet(f)));
   });
   attachGestures(ul, {noSwipe:true, onReorder:(m, prev, next, ids)=>{ S.order = ids; putApp(); render(); }});
   ul.append(h('li',{class:'addd'}, h('button',{onclick:()=>openDrawerSheet()}, h('span',{class:'ic', html:ICON.plus}), h('span',{class:'nm'}, h('b',null,'서랍 추가'), h('span',null,'나만의 서랍을 만들어요')))));
@@ -1486,20 +1493,19 @@ function importBackup(text){
   putApp(); ensureRoutines();
   return null;
 }
-function openSettings(){
-  let showImport = false, showCopy = false;
-  const init = {fs:fsPref, th:themePref, ft:fontPref};
-  const revert = () => {
-    fsPref = init.fs; themePref = init.th; fontPref = init.ft;
-    document.documentElement.dataset.fs = fsPref; applyTheme(); applyFont();
-    try{ localStorage.setItem(FSKEY, fsPref); localStorage.setItem(THKEY, themePref); localStorage.setItem(FTKEY, fontPref); }catch(e){}
-  };
+function openSettings(){ if (S.view !== 'settings') S.prevView = S.view; go('settings'); }
+const SETUI = {showImport:false, showCopy:false};
+function renderSettings(main){
+  let showImport = SETUI.showImport, showCopy = SETUI.showCopy;
+  const draw = () => { SETUI.showImport = showImport; SETUI.showCopy = showCopy; render(); };
+  const closeLayer = () => {};   // settings is a page now: nothing to close
   const sizes = [['s','작게'],['m','보통'],['l','크게'],['xl','아주 크게']];
-  const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'설정'});
-  const draw = () => {
-    sheet.innerHTML='';
+  const sheet = h('div',{class:'setpage'});
+  {
     ensureAllFaces();
-    sheet.append(...[h('div',{class:'grab'}),
+    main.append(h('div',{class:'shead'},
+      h('h2',null, h('button',{class:'ib', style:'margin-left:-10px', 'aria-label':'돌아가기', html:ICON.left, onclick:()=>{ SETUI.showImport = SETUI.showCopy = false; go(S.prevView && S.prevView!=='settings' ? S.prevView : 'daily'); }}), '설정')));
+    sheet.append(...[
       h('button',{type:'button', class:'recordrow', onclick:()=>{ closeLayer(); go('home'); }},
         h('span',{class:'ic', html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="7" rx="1.5"/><rect x="3.5" y="13" width="17" height="7" rx="1.5"/><path d="M10 7.5h4M10 16.5h4"/></svg>'}),
         h('span',{class:'grow'}, h('b',null,'서랍'), h('span',{class:'sub'}, '서랍 목록·서랍 추가·별표한 일·반복 할 일·루틴')),
@@ -1530,7 +1536,7 @@ function openSettings(){
         h('div',{class:'chips'}, FONTS.map(([k,l,fam])=>h('button',{type:'button', class:'chip plain fontchip', style: fam ? `font-family:"${fam}",${BASE_FONT}` : null, 'aria-pressed':String(fontPref===k), onclick:()=>{
           fontPref = k; try{ localStorage.setItem(FTKEY, k); }catch(e){} applyFont(); draw();
         }}, l)))),
-      h('p',{class:'hint', style:'padding:0'}, '고르면 바로 미리 보여요. 저장을 누르면 그대로 유지되고, 취소를 누르면 원래대로 돌아가요. 이 설정은 지금 쓰는 기기에만 적용돼요.'),
+      h('p',{class:'hint', style:'padding:0'}, '고르면 바로 적용돼요. 글자 크기, 화면 모드, 글꼴은 지금 쓰는 기기에만 적용돼요.'),
       h('div',{class:'field'}, h('span',null,'저장'), h('div',{class:'status', 'data-s':syncState}, h('i'), SYNC_TEXT[syncState])),
       h('div',{class:'field'}, h('span',null,'백업 (다른 기기나 새 앱으로 옮길 때)'),
         h('div',{class:'chips'},
@@ -1547,14 +1553,11 @@ function openSettings(){
           h('button',{class:'btn pri', type:'button', onclick:()=>{
             const err = importBackup(ta.value);
             if (err){ toast(err); return; }
-            closeLayer(); toast('백업을 가져왔어요');
+            showImport = false; draw(); toast('백업을 가져왔어요');
           }}, '가져오기')));
-      })() : null,
-      h('div',{class:'row'},
-        h('button',{class:'btn', type:'button', onclick:()=>{ revert(); closeLayer(); }}, '취소'),
-        h('button',{class:'btn pri', type:'button', onclick:()=>{ closeLayer(); toast('설정을 저장했어요'); }}, '저장'))].filter(Boolean));
-  };
-  draw(); openLayer(sheet);
+      })() : null].filter(Boolean));
+    main.append(sheet);
+  }
 }
 
 /* --- next-morning popup: where do the leftovers go? --- */
