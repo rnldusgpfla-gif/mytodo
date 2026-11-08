@@ -107,6 +107,7 @@ main{padding-block:4px 120px}
 .ttl .meta{font-size:12.5px;color:var(--fg-3);display:flex;align-items:center;flex-wrap:wrap;gap:0 6px}
 .ttl .meta .warn{color:var(--star)}
 .ttl .meta svg{width:13px;height:13px;vertical-align:-2px}
+.tnote{flex:0 1 auto;min-width:0;max-width:34%;font-size:12.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:6px}
 .star{flex:none;width:44px;height:40px;border:0;background:none;display:grid;place-items:center;color:var(--fg-3)}
 .star svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round}
 .star[aria-pressed="true"]{color:var(--star)}
@@ -432,7 +433,7 @@ let fsPref = 'm';
 try{ fsPref = localStorage.getItem(FSKEY) || 'm'; }catch(e){}
 document.documentElement.dataset.fs = fsPref;
 const S = {
-  tasks:new Map(), routines:new Map(), projects:[], drawers:[], meta:{}, order:[],
+  tasks:new Map(), routines:new Map(), projects:[], drawers:[], meta:{}, order:[], keywords:['이동중','집에서','회사에서'],
   view:'daily', viewDate:today(), day:today(), q:'',
   mode:'local', loaded:false, rolloverShown:false, recCount:30, openDone:{},
 };
@@ -442,7 +443,7 @@ let appRef = null;
 function loadLocal(){ try{ const r = localStorage.getItem(LSKEY); return r ? JSON.parse(r) : null; }catch(e){ return null; } }
 function saveLocal(){
   if (S.mode!=='local') return;
-  try{ localStorage.setItem(LSKEY, JSON.stringify({tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order})); }catch(e){}
+  try{ localStorage.setItem(LSKEY, JSON.stringify({tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order, keywords:S.keywords})); }catch(e){}
 }
 const pend = new Map(), running = new Set();
 function write(key, ref, data){ pend.set(key,{ref,data}); if (!running.has(key)) flush(key); }
@@ -464,7 +465,7 @@ function putTask(t){ S.tasks.set(t.id,t); if (S.mode==='db') write('t:'+t.id, ap
 function dropTask(id){ S.tasks.delete(id); if (S.mode==='db') write('t:'+id, appRef.collection('tasks').doc(id), null); else saveLocal(); }
 function putRoutine(r){ S.routines.set(r.id,r); if (S.mode==='db') write('r:'+r.id, appRef.collection('routines').doc(r.id), r); else saveLocal(); }
 function dropRoutine(id){ S.routines.delete(id); if (S.mode==='db') write('r:'+id, appRef.collection('routines').doc(id), null); else saveLocal(); }
-function putApp(){ if (S.mode==='db') write('app', appRef, {projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order}); else saveLocal(); }
+function putApp(){ if (S.mode==='db') write('app', appRef, {projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order, keywords:S.keywords}); else saveLocal(); }
 
 /* ---------- helpers ---------- */
 function h(tag, props, ...kids){
@@ -840,6 +841,7 @@ function taskLi(t, opts={}){
       h('span',{class:'box', html:ICON.check})),
     h('button',{class:'ttl', onclick:()=>{ if (Date.now()-lastGesture < 400) return; openTaskSheet(t.id); }},
       h('span',{class:'txt'}, t.title, projBadge(t, opts), (opts.inProject && t.folder!=='project' && !t.done) ? h('span',{class:'when'}, placeLabel(t)) : null, dueTag(t)), meta.length ? h('span',{class:'meta'}, meta) : null),
+    t.note ? h('span',{class:'tnote'}, t.note) : null,
     h('button',{class:'star', 'aria-pressed':String(!!t.star), 'aria-label': t.star ? '중요 표시 해제' : '중요 표시', html:ICON.star, onclick:()=>toggleStar(t.id)}));
 }
 
@@ -1112,7 +1114,7 @@ function renderSearch(main){
     out.innerHTML='';
     const q = S.q.trim().toLowerCase();
     if (!q){ out.append(h('p',{class:'hint'}, '할 일 이름으로 찾아요. 끝낸 일도 함께 보여요.')); return; }
-    const res = all().filter(t=>t.title.toLowerCase().includes(q)).sort((a,b)=> (a.done-b.done) || (b.createdAt||0)-(a.createdAt||0));
+    const res = all().filter(t=>t.title.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q)).sort((a,b)=> (a.done-b.done) || (b.createdAt||0)-(a.createdAt||0));
     out.append(h('div',{class:'sublabel'}, `${res.length}개 찾음`));
     const ul = h('ul',{class:'tasks'}); res.slice(0,200).forEach(t=>ul.append(taskLi(t,{showFolder:true, still:true}))); out.append(ul);
   };
@@ -1246,10 +1248,12 @@ function dueEditor(t, onChange){
 
 function openTaskSheet(id){
   const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'할 일 편집'});
-  let titleIn;
+  let titleIn, noteIn;
   const saveTitle = () => {
     const cur = S.tasks.get(id); const v = titleIn && titleIn.value.trim();
     if (cur && v && v!==cur.title){ putTask({...cur, title:v}); const r = cur.routine && S.routines.get(cur.routine); if (r) putRoutine({...r, title:v}); }
+    const c2 = S.tasks.get(id), nv = noteIn ? noteIn.value.trim() : null;   // memo saves along with the title
+    if (c2 && nv !== null && nv !== (c2.note || '')) putTask({...c2, note:nv});
   };
   const draw = () => {
     const t = S.tasks.get(id); if (!t || t.deleted){ closeLayer(); return; }
@@ -1260,6 +1264,20 @@ function openTaskSheet(id){
     sheet.append(h('div',{class:'grab'}),
       h('div',{class:'titlein'}, titleIn,
         h('button',{class:'star', 'aria-pressed':String(!!t.star), 'aria-label': t.star?'중요 표시 해제':'중요 표시', html:ICON.star, onclick:()=>{ saveTitle(); toggleStar(id); draw(); }})),
+      (()=>{
+        noteIn = h('input',{id:'sheet-note', type:'text', value:t.note || '', placeholder:'예: 집에서, 회사에서, 준비물', 'aria-label':'메모'});
+        noteIn.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); noteIn.blur(); } });
+        noteIn.addEventListener('change', ()=>{ saveTitle(); draw(); });
+        const cur = (t.note || '').trim();
+        return h('div',{class:'field'}, h('span',null,'메모 (할 일 오른쪽에 작게 보여요)'), noteIn,
+          h('div',{class:'chips'},
+            S.keywords.map(kw=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(cur===kw), onclick:()=>{
+              noteIn.value = cur===kw ? '' : kw; saveTitle(); draw();
+            }}, kw)),
+            cur && cur.length <= 12 && !S.keywords.includes(cur)
+              ? h('button',{type:'button', class:'chip plain', style:'border-style:dashed', onclick:()=>{ S.keywords = [...S.keywords, cur]; putApp(); toast(`'${cur}'을 키워드로 저장했어요`); draw(); }}, `+ '${cur}' 키워드로 저장`)
+              : null));
+      })(),
       h('div',{class:'field'}, h('span',null,'옮기기'),
         h('div',{class:'chips'}, dests().map(([k,label,c])=>h('button',{type:'button', class:'chip', style:cstyle(c), 'aria-pressed':String(currentDest(t)===k), onclick:()=>{
           if (currentDest(t)===k) return;
@@ -1444,7 +1462,7 @@ function openProjectSheet(pid){
 }
 
 function backupText(){
-  return JSON.stringify({app:'my-to-do-list', v:1, savedAt:new Date().toISOString(), tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order});
+  return JSON.stringify({app:'my-to-do-list', v:1, savedAt:new Date().toISOString(), tasks:[...S.tasks.values()], routines:[...S.routines.values()], projects:S.projects, drawers:S.drawers, meta:S.meta, order:S.order, keywords:S.keywords});
 }
 function importBackup(text){
   let d;
@@ -1479,6 +1497,14 @@ function openSettings(){
         h('span',{class:'ic', html:ICON.book}),
         h('span',{class:'grow'}, h('b',null,'기록'), h('span',{class:'sub'}, `지금까지 끝낸 일 ${all().filter(x=>x.done).length}개`)),
         h('span',{class:'chev', html:ICON.chev})),
+      (()=>{
+        const add = h('input',{id:'kw-add', type:'text', placeholder:'키워드 추가 (예: 카페에서)', 'aria-label':'메모 키워드 추가'});
+        const commit = () => { const v = add.value.trim(); if (!v || S.keywords.includes(v)) { add.value=''; return; } S.keywords = [...S.keywords, v]; putApp(); draw(); };
+        add.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); commit(); } });
+        return h('div',{class:'field'}, h('span',null,'메모 키워드 (할 일 메모에서 바로 고르는 말)'),
+          h('div',{class:'chips'}, S.keywords.map(kw=>h('button',{type:'button', class:'chip plain', 'aria-label':`${kw} 지우기`, onclick:()=>{ S.keywords = S.keywords.filter(x=>x!==kw); putApp(); draw(); }}, kw, ' ×'))),
+          add);
+      })(),
       h('div',{class:'field'}, h('span',null,'글자 크기'),
         h('div',{class:'chips'}, sizes.map(([k,l])=>h('button',{type:'button', class:'chip plain', 'aria-pressed':String(fsPref===k), onclick:()=>{
           fsPref = k; document.documentElement.dataset.fs = k; try{ localStorage.setItem(FSKEY, k); }catch(e){}
@@ -1602,7 +1628,7 @@ const local = loadLocal();
 function applyLocal(d){
   S.tasks = new Map((d.tasks||[]).map(t=>[t.id,t]));
   S.routines = new Map((d.routines||[]).map(r=>[r.id,r]));
-  S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {}; S.order = d.order || [];
+  S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {}; S.order = d.order || []; S.keywords = d.keywords || ['이동중','집에서','회사에서'];
 }
 if (local) applyLocal(local);
 render();
@@ -1637,7 +1663,7 @@ async function connect(){
         migrated = true;
         local.tasks.forEach(t=>putTask(t));
         (local.routines||[]).forEach(r=>putRoutine(r));
-        S.projects = local.projects || []; S.drawers = local.drawers || []; S.meta = local.meta || {}; S.order = local.order || []; putApp();
+        S.projects = local.projects || []; S.drawers = local.drawers || []; S.meta = local.meta || {}; S.order = local.order || []; S.keywords = local.keywords || ['이동중','집에서','회사에서']; putApp();
       }
     }
     rerender(); ready();
@@ -1654,7 +1680,7 @@ async function connect(){
   appRef.onSnapshot(s=>{
     if (!pend.has('app') && !(migrated && !s.exists)){
       const d = s.exists ? s.data() : {};
-      S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {}; S.order = d.order || [];
+      S.projects = d.projects || []; S.drawers = d.drawers || []; S.meta = d.meta || {}; S.order = d.order || []; S.keywords = d.keywords || ['이동중','집에서','회사에서'];
     }
     if (!s.metadata.fromCache) gotApp = true;
     rerender(); ready();
