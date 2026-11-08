@@ -1499,8 +1499,20 @@ function importBackup(text){
   (d.routines||[]).forEach(r=>{ if (r && r.id) putRoutine(r); });
   const byId = (a,b) => { const m = new Map(a.map(x=>[x.id,x])); (b||[]).forEach(x=>{ if (x && x.id && !m.has(x.id)) m.set(x.id,x); }); return [...m.values()]; };
   S.projects = byId(S.projects, d.projects); S.drawers = byId(S.drawers, d.drawers); S.meta = {...(d.meta||{}), ...S.meta};
+  if (Array.isArray(d.order) && d.order.length && !(S.order||[]).length) S.order = d.order;          // drawer order
+  if (Array.isArray(d.keywords)) S.keywords = [...new Set([...d.keywords, ...S.keywords])];      // memo keywords
   putApp(); ensureRoutines();
   return null;
+}
+const backupName = () => { const x = new Date(), z = n=>String(n).padStart(2,'0'); return `todo-backup-${x.getFullYear()}${z(x.getMonth()+1)}${z(x.getDate())}-${z(x.getHours())}${z(x.getMinutes())}.json`; };
+async function saveBackupFile(){
+  const name = backupName(), blob = new Blob([backupText()], {type:'application/json'});
+  try{
+    const file = new File([blob], name, {type:'application/json'});
+    if (navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; }   // iPhone: 파일에 저장
+  }catch(e){ if (e && e.name==='AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 function openSettings(){ if (S.view !== 'settings') S.prevView = S.view; go('settings'); }
 const SETUI = {showImport:false, showCopy:false};
@@ -1548,13 +1560,20 @@ function renderSettings(main){
       h('p',{class:'hint', style:'padding:0'}, '고르면 바로 적용돼요. 글자 크기, 화면 모드, 글꼴은 지금 쓰는 기기에만 적용돼요.'),
       h('div',{class:'field'}, h('span',null,'저장'), h('div',{class:'status', 'data-s':syncState}, h('i'), SYNC_TEXT[syncState])),
       h('div',{class:'field'}, h('span',null,'백업 (다른 기기나 새 앱으로 옮길 때)'),
+        IN_CLAUDE ? null : h('div',{class:'chips'},
+          h('button',{type:'button', class:'chip plain', onclick:()=>saveBackupFile()}, '백업 파일로 저장'),
+          (()=>{ const fi = h('input',{type:'file', id:'backup-file', accept:'.json,.txt,application/json,text/plain', hidden:true});
+            fi.addEventListener('change', ()=>{ const f = fi.files && fi.files[0]; if (!f) return; const rd = new FileReader();
+              rd.onload = ()=>{ const err = importBackup(String(rd.result||'')); if (err){ toast('백업 파일을 읽지 못했어요. 이 앱에서 저장한 백업 파일인지 확인해 주세요.'); return; } render(); toast(`백업을 불러왔어요 · 할 일 ${all().length}개`); };
+              rd.readAsText(f); fi.value=''; });
+            return h('label',{class:'chip plain', style:'cursor:pointer'}, '백업 파일 불러오기', fi); })()),
         h('div',{class:'chips'},
           h('button',{type:'button', class:'chip plain', onclick:()=>{
             const txt = backupText();
             const fallback = () => { showCopy = true; showImport = false; draw(); const ta = document.getElementById('backup-out'); if (ta){ ta.focus(); ta.select(); } toast('아래 글을 길게 눌러 전체 선택 후 복사해 주세요'); };
             try{ navigator.clipboard.writeText(txt).then(()=>toast(`할 일 ${all().length}개를 복사했어요`), fallback); }catch(e){ fallback(); }
-          }}, '백업 복사하기'),
-          h('button',{type:'button', class:'chip plain', 'aria-pressed':String(showImport), onclick:()=>{ showImport = !showImport; showCopy = false; draw(); }}, '백업 붙여넣기'))),
+          }}, '글로 복사하기'),
+          h('button',{type:'button', class:'chip plain', 'aria-pressed':String(showImport), onclick:()=>{ showImport = !showImport; showCopy = false; draw(); }}, '글 붙여넣기'))),
       showCopy ? h('div',{class:'field'}, h('textarea',{id:'backup-out', readonly:true}, backupText())) : null,
       showImport ? (()=>{
         const ta = h('textarea',{id:'backup-in', placeholder:'복사해 둔 백업 글을 여기에 붙여넣어요'});
