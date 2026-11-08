@@ -495,7 +495,7 @@ function info(f){
   if (FOLDERS[f]) base = {...FOLDERS[f]};
   else { const d = findDrawer(f); base = d ? {name:d.name, desc:d.desc || '', c:d.c || '--f-c1', custom:true} : {name:'서랍', desc:'', c:'--f-hold'}; }
   const m = S.meta[f];
-  if (m){ if (m.name) base.name = m.name; if (m.desc != null) base.desc = m.desc; if (m.c) base.c = m.c; }
+  if (m){ if (m.name) base.name = m.name; if (m.desc != null) base.desc = m.desc; if (m.c) base.c = m.c; if (m.hideCount) base.hideCount = true; }
   return base;
 }
 const folderIds = () => {
@@ -812,7 +812,8 @@ function renderTabs(){
   const sel = id => id==='daily' ? (S.view==='daily' && S.viewDate===today())
     : id==='tomorrow' ? (S.view==='daily' && S.viewDate===tmr)
     : S.view===id;
-  const tab = (id, label, n) => h('button',{class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n ? h('span',{class:'n'}, n) : null);
+  const tab = (id, label, n) => { const hide = info(id==='tomorrow' ? 'daily' : id).hideCount;
+    return h('button',{class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n && !hide ? h('span',{class:'n'}, n) : null); };
   nav.append(tab('daily', info('daily').name, c.daily));
   nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done && !isRoutineTask(x)).length));
   folderIds().filter(f=>f!=='daily').forEach(f => nav.append(tab(f, info(f).name, c[f])));
@@ -1397,12 +1398,18 @@ function openDrawerSheet(fid){
   const name = h('input',{id:'drawer-name', type:'text', value:I.name, placeholder:'예: 결혼 준비, 장보기', 'aria-label':'서랍 이름'});
   const desc = h('input',{id:'drawer-desc', type:'text', value:I.desc, placeholder:'예: 11월 안에 끝낼 일', 'aria-label':'서랍 설명'});
   const sw = swatchPicker(color, c=>{ color = c; });
+  let showCount = !(editing && info(fid).hideCount);
+  const countChips = h('div',{class:'chips'});
+  const drawCount = () => { countChips.innerHTML=''; [[true,'표시'],[false,'숨기기']].forEach(([v,l])=>countChips.append(h('button',{type:'button', class:'chip plain', 'aria-pressed':String(showCount===v), onclick:()=>{ showCount = v; drawCount(); }}, l))); };
+  drawCount();
   const save = () => {
     const n = name.value.trim(), dsc = desc.value.trim();
     if (!n){ name.focus(); toast('서랍 이름을 적어 주세요'); return; }
-    if (!editing){ const nd = {id:'d'+uid(), name:n, desc:dsc, c:color, createdAt:Date.now()}; S.drawers = [...S.drawers, nd]; S.view = nd.id; }
+    let id = fid;
+    if (!editing){ const nd = {id:'d'+uid(), name:n, desc:dsc, c:color, createdAt:Date.now()}; S.drawers = [...S.drawers, nd]; S.view = id = nd.id; }
     else if (custom) S.drawers = S.drawers.map(x=>x.id===fid ? {...x, name:n, desc:dsc, c:color} : x);
-    else S.meta = {...S.meta, [fid]: {name: n===FOLDERS[fid].name ? null : n, desc: dsc===FOLDERS[fid].desc ? null : dsc, c: color===FOLDERS[fid].c ? null : color}};
+    else S.meta = {...S.meta, [fid]: {...(S.meta[fid]||{}), name: n===FOLDERS[fid].name ? null : n, desc: dsc===FOLDERS[fid].desc ? null : dsc, c: color===FOLDERS[fid].c ? null : color}};
+    S.meta = {...S.meta, [id]: {...(S.meta[id]||{}), hideCount: !showCount}};
     putApp(); closeLayer();
   };
   name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); save(); } });
@@ -1420,6 +1427,7 @@ function openDrawerSheet(fid){
     h('label',{class:'field'}, h('span',null,'서랍 이름'), name),
     h('label',{class:'field'}, h('span',null,'설명 (이름 옆에 작게 보여요)'), desc),
     h('div',{class:'field'}, h('span',null,'색'), sw),
+    h('div',{class:'field'}, h('span',null, fid==='daily' ? '탭에 남은 개수 표시 (내일 탭도 같이 적용돼요)' : '탭에 남은 개수 표시'), countChips),
     h('div',{class:'row'}, left, h('button',{class:'btn pri', type:'button', onclick:save}, editing ? '저장' : '만들기'))), null, ()=>{ if (name.value.trim()) save(); else closeLayer(); });
   if (!editing) setTimeout(()=>name.focus(), 50);
 }
