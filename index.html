@@ -208,6 +208,11 @@ li.addrow input:focus{outline:none}
 .drawers .sep{height:1px;background:var(--line);margin:6px 16px}
 
 .pgroup + .pgroup{border-top:1px solid var(--line)}
+.porder{margin:0}
+.porder > li{border-radius:10px;cursor:grab}
+.porder .handle{flex:none;width:44px;display:grid;place-items:center;color:var(--fg-3)}
+.porder .handle svg{width:20px;height:20px}
+.porder .ttl{padding:12px 4px}
 .pdot{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none}
 .pgroup .fold{border-top:0;margin-top:0}
 .pgroup .shead h2{font-size:16px;font-weight:600}
@@ -1068,7 +1073,7 @@ function renderFolder(main, f){
 function renderProjects(main){
   const I = info('project');
   main.append(h('div',{class:'shead'}, h('h2',null, I.name),
-    h('div',{class:'acts'}, h('button',{class:'txtbtn', onclick:openNewProject}, '+ 새 프로젝트'), settingsBtn('project'))));
+    h('div',{class:'acts'}, S.projects.length > 1 ? h('button',{class:'txtbtn', style:'color:var(--fg-2)', onclick:openProjectOrder}, '순서') : null, h('button',{class:'txtbtn', onclick:openNewProject}, '+ 새 프로젝트'), settingsBtn('project'))));
   const items = all().filter(t=>t.folder==='project' || projExists(t.project));
   const groups = S.projects.map(p=>({id:p.id, name:p.name, c:p.c || '--f-project'}));
   if (items.some(t=>t.folder==='project' && !projExists(t.project))) groups.push({id:null, name:'미분류'});
@@ -1177,6 +1182,7 @@ function enablePullDown(node, pullSave){
   const move = (y, x, e) => {
     if (!active) return;
     const d = y - sy, ddx = x - sx;
+    if (typeof D !== 'undefined' && D && D.mode){ active = false; return; }
     if (!dragging){
       if (d > 8 && d > Math.abs(ddx) * 1.2){ dragging = true; node.style.animation = 'none'; node.style.transition = 'none'; }
       else if (d < -4 || Math.abs(ddx) > 10){ active = false; return; }
@@ -1454,6 +1460,23 @@ function swatchPicker(start, onPick){
         h('span',null, custom ? `${color.toUpperCase()} · 눌러서 바꾸기` : '모든 색 보기')));
   };
   draw(); return box;
+}
+function openProjectOrder(){
+  const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'프로젝트 순서'});
+  const draw = () => {
+    sheet.innerHTML = '';
+    const ul = h('ul',{class:'tasks porder'}, S.projects.map(p=>h('li',{'data-id':p.id},
+      h('span',{class:'chk'}, h('span',{class:'pdot', style:`--c:${cssc(p.c || '--f-project')}`})),
+      h('span',{class:'ttl'}, h('span',{class:'txt'}, p.name)),
+      h('span',{class:'handle', 'aria-hidden':'true', html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>'}))));
+    attachGestures(ul, {noSwipe:true, onReorder:(m, prev, next, ids)=>{
+      S.projects = ids.map(id=>S.projects.find(x=>x.id===id)).filter(Boolean); putApp(); draw();
+    }});
+    sheet.append(h('div',{class:'grab'}),
+      h('div',{class:'field'}, h('span',null,'프로젝트 순서 (길게 눌러 끌어서 옮겨요)'), ul),
+      h('div',{class:'row', style:'justify-content:flex-end'}, h('button',{class:'btn pri', type:'button', onclick:closeLayer}, '완료')));
+  };
+  draw(); openLayer(sheet);
 }
 function openNewProject(){
   let color = NEON[S.projects.length % NEON.length];
