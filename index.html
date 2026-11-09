@@ -140,7 +140,14 @@ li.done .box{border-color:var(--fg-3)}
 /* always-empty first row */
 li.addrow{touch-action:auto}
 li.addrow .box{border-color:var(--fg-3)}
-li.addrow input{flex:1;min-width:0;border:0;background:transparent;padding:9px 4px;font-size:max(16px,var(--fs));margin-right:44px}
+li.addrow input{flex:1;min-width:0;border:0;background:transparent;padding:9px 4px;font-size:max(16px,var(--fs))}
+.adddiv{flex:none;width:44px;height:40px;border:0;background:none;display:grid;place-items:center;color:var(--fg-3)}
+.adddiv svg{width:20px;height:20px}
+.tasks > li.divider{min-height:28px;padding:0 12px 0 18px}
+.dline{flex:1;border:0;background:none;display:flex;align-items:center;gap:8px;padding:10px 0;min-height:28px}
+.dline i{flex:1;height:1px;background:var(--line)}
+.dline span{flex:none;font-size:12px;font-weight:600;color:var(--fg-3);letter-spacing:.02em}
+.dline span:first-child{display:none}
 li.addrow input::placeholder{color:var(--fg-3)}
 li.addrow input:focus{outline:none}
 
@@ -550,17 +557,39 @@ function buzz(){
 /* ---------- actions ---------- */
 function addTask(folder, title, extra={}){
   title = title.trim(); if (!title) return;
+  // "---" (or "--- 오후") makes a divider instead of a task
+  const dv = /^(-{2,}|—+|ㅡ{2,})\s*(.*)$/.exec(title);
+  if (dv || extra.divider){ extra.divider = true; title = dv ? dv[2] : ''; }
   const date = folder==='daily' ? (extra.date || S.viewDate) : null;
   const project = folder==='project' ? (extra.project || null) : null;
   putTask({id:'t'+uid(), title, folder, date, project, star:false, done:false, doneAt:null, carried:0, due:null,
+    ...(extra.divider ? {kind:'divider'} : {}),
     createdAt:Date.now(), order: bottomKey(listOf(folder,{date,project}))});
   render();
+}
+function dividerLi(t){
+  return h('li',{'data-id':t.id, class:'divider'},
+    h('button',{class:'dline', 'aria-label': t.title ? `구분선 ${t.title}` : '구분선', onclick:()=>{ if (Date.now()-lastGesture < 400) return; openDividerSheet(t.id); }},
+      h('i'), t.title ? h('span',null,t.title) : null, t.title ? h('i') : null));
+}
+function openDividerSheet(id){
+  const t = S.tasks.get(id); if (!t) return;
+  const name = h('input',{id:'divider-name', type:'text', value:t.title || '', placeholder:'이름 없이 선만 (예: 오후, 저녁)', 'aria-label':'구분선 이름'});
+  const save = () => { const cur = S.tasks.get(id); if (cur && name.value.trim() !== (cur.title||'')) putTask({...cur, title:name.value.trim()}); closeLayer(); };
+  name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); save(); } });
+  openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'구분선'},
+    h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'구분선 이름 (비워 두면 선만 보여요)'), name),
+    h('p',{class:'hint', style:'padding:0'}, '길게 눌러 끌면 위치를 옮길 수 있어요.'),
+    h('div',{class:'row'},
+      h('button',{class:'btn danger', type:'button', onclick:()=>{ closeLayer(); removeTask(id); }}, '구분선 삭제'),
+      h('button',{class:'btn pri', type:'button', onclick:save}, '완료'))), null, save);
 }
 function toggleDone(id){
   const t = S.tasks.get(id); if (!t) return;
   const before = snap([id]);
   const done = !t.done;
-  const next = {...t, done, doneAt: done ? today() : null};
+  const pastDay = t.folder==='daily' && t.date && t.date < today();
+  const next = {...t, done, doneAt: done ? (pastDay ? t.date : today()) : null};   // done on its own (past) day
   if (!done) next.order = topKey(listOf(t.folder,{date:t.date, project:t.project}));
   putTask(next); render();
   if (done) undoToast('완료했어요', before);
@@ -602,13 +631,13 @@ function reorder(movedId, prevId, nextId, ids){
   render();
 }
 function swipeToToday(id){
-  const t = S.tasks.get(id); if (!t) return;
+  const t = S.tasks.get(id); if (!t || isDivider(t)) return;
   const before = snap([id]);
   putTask(moveTask(t, 'today')); render();
   undoToast('오늘 할 일로 꺼냈어요', before);
 }
 function swipeToNextDay(id){
-  const t = S.tasks.get(id); if (!t) return;
+  const t = S.tasks.get(id); if (!t || isDivider(t)) return;
   const before = snap([id]);
   const date = addDays(t.date || today(), 1);
   putTask({...t, date, carried:(t.carried||0)+1, order: topKey(listOf('daily',{date}))}); render();
@@ -616,12 +645,14 @@ function swipeToNextDay(id){
 }
 function overdue(){
   const t = today();
-  return all().filter(x => x.folder==='daily' && !x.done && !isRoutineTask(x) && x.date && x.date < t).sort((a,b)=>a.date.localeCompare(b.date) || byKey(a,b));
+  return all().filter(x => x.folder==='daily' && !x.done && !notTodo(x) && x.date && x.date < t).sort((a,b)=>a.date.localeCompare(b.date) || byKey(a,b));
 }
 /* put today's copy of each repeating task into today's list (one per day, same id on every device) */
 /* items made before routines existed were all 반복 할 일; ones made from the 루틴 flow since then are 루틴 */
 const ROUTINE_SINCE = Date.parse('2026-11-07T09:10:00Z');
 const kindOf = r => r ? (r.kind || ((r.createdAt||0) >= ROUTINE_SINCE ? 'routine' : 'repeat')) : 'repeat';
+const isDivider = t => !!(t && t.kind==='divider');
+const notTodo = t => isDivider(t) || isRoutineTask(t);
 const isRoutineTask = t => !!(t && t.routine && (t.rkind || kindOf(S.routines.get(t.routine))) === 'routine');
 const repeatsOf = kind => [...S.routines.values()].filter(r=>kindOf(r)===kind);
 function ensureRoutines(){
@@ -808,7 +839,7 @@ function go(view){
 }
 function counts(){
   const t = today(), c = {};
-  folderIds().forEach(f => c[f] = all().filter(x => x.folder===f && !x.done && !isRoutineTask(x) && (f!=='daily' || x.date===t)).length);
+  folderIds().forEach(f => c[f] = all().filter(x => x.folder===f && !x.done && !notTodo(x) && (f!=='daily' || x.date===t)).length);
   return c;
 }
 function renderTabs(){
@@ -821,7 +852,7 @@ function renderTabs(){
   const tab = (id, label, n) => { const hide = info(id==='tomorrow' ? 'daily' : id).hideCount;
     return h('button',{class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n && !hide ? h('span',{class:'n'}, n) : null); };
   nav.append(tab('daily', info('daily').name, c.daily));
-  nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done && !isRoutineTask(x)).length));
+  nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done && !notTodo(x)).length));
   folderIds().filter(f=>f!=='daily').forEach(f => nav.append(tab(f, info(f).name, c[f])));
 }
 
@@ -873,9 +904,11 @@ function listBlock({id, folder, date, project, items, add=true, liOpts={}}){
     const commit = () => { const v = inp.value; if (!v.trim()) return; inp.value=''; addTask(folder, v, {date, project}); };
     inp.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); commit(); } });
     inp.addEventListener('blur', ()=>{ if (!rendering && inp.isConnected && inp.value.trim()) commit(); });
-    addRow = h('li',{class:'addrow'}, h('label',{class:'chk', for:inp.id, 'aria-hidden':'true'}, h('span',{class:'box'})), inp);
+    addRow = h('li',{class:'addrow'}, h('label',{class:'chk', for:inp.id, 'aria-hidden':'true'}, h('span',{class:'box'})), inp,
+      h('button',{class:'adddiv', type:'button', 'aria-label':'구분선 추가', title:'구분선 추가', onclick:()=>{ const v = inp.value.trim(); inp.value=''; addTask(folder, v || '---', {date, project, divider:true}); },
+        html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12h18"/><path d="M8 7h8M8 17h8" opacity=".35"/></svg>'}));
   }
-  open.forEach(t => ul.append(taskLi(t, liOpts)));
+  open.forEach(t => ul.append(isDivider(t) ? dividerLi(t) : taskLi(t, liOpts)));
   if (addRow) ul.append(addRow);
   const isDaily = folder==='daily';
   attachGestures(ul, {onSwipe: isDaily ? swipeToNextDay : swipeToToday, swipeLabel: isDaily ? '다음 날로' : '오늘로'});
@@ -900,7 +933,7 @@ function renderHome(main){
   overdueBanner(main);
   main.append(h('div',{class:'shead'}, h('h2',null,'서랍')));
   const t = today(), c = counts();
-  const dayAll = all().filter(x=>x.folder==='daily' && x.date===t && !isRoutineTask(x));
+  const dayAll = all().filter(x=>x.folder==='daily' && x.date===t && !notTodo(x));
   const dayDone = dayAll.filter(x=>x.done).length;
   const row = (onclick, ic, name, subText, n, dragId, onEdit) => h('li',{'data-id': dragId || null}, h('button',{class:'main', onclick:()=>{ if (Date.now()-lastGesture < 400) return; onclick(); }}, ic,
     h('span',{class:'nm'}, h('b',null,name), subText ? h('span',null,subText) : null),
@@ -1080,7 +1113,7 @@ function renderProjects(main){
   if (!groups.length){ main.append(h('p',{class:'hint'}, '프로젝트를 만들고 그 아래에 할 일을 넣어 보세요. 예: 이사 준비, 모바일 청첩장 만들기')); return; }
   groups.forEach(g=>{
     const its = items.filter(t => g.id ? t.project===g.id : (t.folder==='project' && !projExists(t.project)));
-    const left = its.filter(t=>!t.done).length;
+    const left = its.filter(t=>!t.done && !isDivider(t)).length;
     main.append(h('section',{class:'pgroup'},
       h('div',{class:'shead'}, h('h2',null, g.c ? h('span',{class:'pdot', style:`--c:${cssc(g.c)}`}) : null, g.name, h('small',null, left ? `${left}개 남음` : '')),
         g.id ? h('div',{class:'acts'}, h('button',{class:'ib', 'aria-label':`${g.name} 설정`, html:ICON.dots, onclick:()=>openProjectSheet(g.id)})) : null),
@@ -1091,7 +1124,7 @@ function renderProjects(main){
 /* --- starred --- */
 function renderStarred(main){
   main.append(h('div',{class:'shead'}, h('h2',null,'별표한 일', h('small',null,'모든 서랍의 중요한 일'))));
-  const items = all().filter(t=>t.star && !t.done).sort((a,b)=>folderIds().indexOf(a.folder)-folderIds().indexOf(b.folder) || byKey(a,b));
+  const items = all().filter(t=>t.star && !t.done && !isDivider(t)).sort((a,b)=>folderIds().indexOf(a.folder)-folderIds().indexOf(b.folder) || byKey(a,b));
   if (!items.length){ main.append(h('p',{class:'hint'}, '할 일 오른쪽의 별을 누르면 여기에 모여요.')); return; }
   const ul = h('ul',{class:'tasks'}); items.forEach(t=>ul.append(taskLi(t,{showFolder:true, still:true}))); main.append(ul);
 }
@@ -1131,7 +1164,7 @@ function renderSearch(main){
     out.innerHTML='';
     const q = S.q.trim().toLowerCase();
     if (!q){ out.append(h('p',{class:'hint'}, '할 일 이름으로 찾아요. 끝낸 일도 함께 보여요.')); return; }
-    const res = all().filter(t=>t.title.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q) || (t.memo||'').toLowerCase().includes(q)).sort((a,b)=> (a.done-b.done) || (b.createdAt||0)-(a.createdAt||0));
+    const res = all().filter(t=>!isDivider(t)).filter(t=>t.title.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q) || (t.memo||'').toLowerCase().includes(q)).sort((a,b)=> (a.done-b.done) || (b.createdAt||0)-(a.createdAt||0));
     out.append(h('div',{class:'sublabel'}, `${res.length}개 찾음`));
     const ul = h('ul',{class:'tasks'}); res.slice(0,200).forEach(t=>ul.append(taskLi(t,{showFolder:true, still:true}))); out.append(ul);
   };
@@ -1617,7 +1650,7 @@ function openRollover(){
   S.rolloverShown = true;
   const choice = new Map(items.map(t=>[t.id, {dest:'today', project: S.projects[0]?.id || '__new', newName:''}]));
   const body = h('div',{class:'body'});
-  const opts = () => [['today','오늘',info('daily').c], ...folderIds().filter(f=>f!=='daily').map(f=>[f, info(f).name, info(f).c]), ['delete','지우기','--star']];
+  const opts = () => [['done','이미 했어요','--routine'], ['today','오늘',info('daily').c], ...folderIds().filter(f=>f!=='daily').map(f=>[f, info(f).name, info(f).c]), ['delete','지우기','--star']];
   const drawBody = () => {
     body.innerHTML='';
     items.forEach(t=>{
@@ -1650,9 +1683,10 @@ function openRollover(){
       h('button',{class:'btn', type:'button', onclick:closeLayer}, '나중에'),
       h('button',{class:'btn pri', type:'button', onclick:()=>{
         const before = snap(items.map(t=>t.id));
-        const newIds = {}; let moved = 0, removed = 0;
+        const newIds = {}; let moved = 0, removed = 0, finished = 0;
         items.forEach(t=>{
           const c = choice.get(t.id), cur = S.tasks.get(t.id); if (!cur) return;
+          if (c.dest==='done'){ putTask({...cur, done:true, doneAt:cur.date || today()}); finished++; return; }
           if (c.dest==='delete'){ dropTask(t.id); removed++; return; }
           if (c.dest==='today'){ putTask({...cur, date:today(), carried:(cur.carried||0)+1}); moved++; return; }
           let pid = null;
@@ -1663,7 +1697,7 @@ function openRollover(){
           putTask(moveTask(cur, c.dest, pid)); moved++;
         });
         closeLayer();
-        undoToast(`${moved}개를 옮겼어요` + (removed ? `, ${removed}개를 지웠어요` : ''), before);
+        undoToast('정리했어요 · ' + [finished ? `완료 ${finished}` : '', moved ? `옮김 ${moved}` : '', removed ? `삭제 ${removed}` : ''].filter(Boolean).join(' · '), before);
       }}, '재배치하기'))));
 }
 function maybeRollover(){
