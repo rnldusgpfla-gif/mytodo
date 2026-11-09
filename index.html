@@ -60,7 +60,10 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 html.dragging-now, html.dragging-now *{-webkit-user-select:none;user-select:none}
 
 /* header + tabs */
-.head{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+html,body{height:100%}
+body{display:flex;flex-direction:column;overflow:hidden}
+#scroller{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.head{flex:none;position:relative;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .titlebar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding-block:10px 4px}
 @media (display-mode: standalone){.titlebar{padding-block:26px 4px}}
 .titlebar h1{margin:0;text-align:center;font-size:22px;font-weight:500;letter-spacing:-.01em}
@@ -317,7 +320,7 @@ li.addrow input:focus{outline:none}
     <nav class="tabs" id="tabs" role="tablist" aria-label="서랍"></nav>
   </div>
 </div>
-<div class="wrap"><main id="main"></main></div>
+<div id="scroller"><div class="wrap"><main id="main"></main></div></div>
 <div id="layer"></div>
 <div id="toastbox" aria-live="polite"></div>
 
@@ -671,12 +674,13 @@ function ensureRoutines(){
 }
 
 /* ---------- gestures: long-press drag to reorder, swipe right to move ---------- */
+const SC = () => document.getElementById('scroller');
 let D = null, lastGesture = 0, needRender = false, rendering = false;
 function attachGestures(ul, opts){
   ul.addEventListener('pointerdown', e=>{
     const li = e.target.closest('li[data-id]');
     if (!li || li.parentNode!==ul || e.button>0 || e.target.closest('.chk,.star,.rowedit')) return;
-    D = {li, ul, opts, x:e.clientX, y:e.clientY, lastX:e.clientX, lastY:e.clientY, sy:window.scrollY, type:e.pointerType, mode:null};
+    D = {li, ul, opts, x:e.clientX, y:e.clientY, lastX:e.clientX, lastY:e.clientY, sy:SC().scrollTop, type:e.pointerType, mode:null};
     if (e.pointerType!=='mouse') D.timer = setTimeout(()=>{ if (D && !D.mode) beginDrag(); }, 380);
   });
   ul.addEventListener('contextmenu', e=>{ if (e.target.closest('li[data-id]')) e.preventDefault(); });
@@ -686,13 +690,13 @@ function beginDrag(){
   const rows = [...D.ul.children].filter(n => n.dataset && n.dataset.id);
   Object.assign(D, {mode:'drag', rows, idx:rows.indexOf(D.li)});
   D.target = D.idx;
-  D.tops = rows.map(r => r.getBoundingClientRect().top + window.scrollY);
+  D.tops = rows.map(r => r.getBoundingClientRect().top + SC().scrollTop);
   D.hs = rows.map(r => r.offsetHeight); D.h = D.hs[D.idx];
   D.li.classList.add('dragging'); document.documentElement.classList.add('dragging-now');
   buzz(); requestAnimationFrame(autoScroll);
 }
 function dragMove(){
-  const dy = (D.lastY + window.scrollY) - (D.y + D.sy);
+  const dy = (D.lastY + SC().scrollTop) - (D.y + D.sy);
   D.li.style.transform = `translateY(${dy}px) scale(1.01)`;
   const center = D.tops[D.idx] + D.h/2 + dy;
   let t = D.idx;
@@ -715,7 +719,7 @@ function autoScroll(){
   const y = D.lastY, topEdge = 160, botEdge = window.innerHeight - 80;
   let v = 0;
   if (y < topEdge) v = -Math.ceil((topEdge - y)/8); else if (y > botEdge) v = Math.ceil((y - botEdge)/8);
-  if (v){ window.scrollBy(0, v); dragMove(); }
+  if (v){ SC().scrollBy(0, v); dragMove(); }
   requestAnimationFrame(autoScroll);
 }
 const SWIPE_AT = 90;
@@ -834,7 +838,7 @@ function go(view){
   if (view==='tomorrow'){ view = 'daily'; S.viewDate = addDays(today(),1); }
   else if (view==='daily') S.viewDate = today();
   S.view = view;
-  render(); window.scrollTo(0,0);
+  render(); SC().scrollTop = 0;
   const sel = document.querySelector('.tab[aria-selected="true"]'); if (sel) sel.scrollIntoView({inline:'nearest', block:'nearest'});
 }
 function counts(){
@@ -1446,7 +1450,7 @@ function openDrawerSheet(fid){
     const n = name.value.trim(), dsc = desc.value.trim();
     if (!n){ name.focus(); toast('서랍 이름을 적어 주세요'); return; }
     let id = fid;
-    if (!editing){ const nd = {id:'d'+uid(), name:n, desc:dsc, c:color, createdAt:Date.now()}; S.drawers = [...S.drawers, nd]; S.view = id = nd.id; }
+    if (!editing){ const nd = {id:'d'+uid(), name:n, desc:dsc, c:color, createdAt:Date.now()}; S.drawers = [...S.drawers, nd]; id = nd.id; toast(`'${n}' 서랍을 만들었어요`); }
     else if (custom) S.drawers = S.drawers.map(x=>x.id===fid ? {...x, name:n, desc:dsc, c:color} : x);
     else S.meta = {...S.meta, [fid]: {...(S.meta[fid]||{}), name: n===FOLDERS[fid].name ? null : n, desc: dsc===FOLDERS[fid].desc ? null : dsc, c: color===FOLDERS[fid].c ? null : color}};
     S.meta = {...S.meta, [id]: {...(S.meta[id]||{}), hideCount: !showCount}};
