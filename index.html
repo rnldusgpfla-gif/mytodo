@@ -75,6 +75,8 @@ body{display:flex;flex-direction:column;overflow:hidden}
 .tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-padding-inline:16px}
 .tabs::-webkit-scrollbar{display:none}
 .tab{flex:none;border:0;background:none;padding:8px 9px 10px;font-size:15px;color:var(--fg-2);display:flex;align-items:center;gap:6px;position:relative;white-space:nowrap}
+.tab.droptarget{background:var(--accent-soft);color:var(--accent);border-radius:10px;transform:scale(1.06)}
+.dragghost{position:fixed;z-index:40;max-width:220px;padding:8px 12px;border-radius:12px;background:var(--sheet);color:var(--fg);box-shadow:var(--lift);font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .tab .n{background:var(--pill);color:var(--fg-2);font-size:12px;font-weight:600;border-radius:99px;padding:1px 7px;font-variant-numeric:tabular-nums}
 .tab[aria-selected="true"]{color:var(--accent);font-weight:600}
 .tab[aria-selected="true"]::after{content:"";position:absolute;left:6px;right:6px;bottom:0;height:1.5px;border-radius:1px;background:var(--accent)}
@@ -633,6 +635,16 @@ function reorder(movedId, prevId, nextId, ids){
   } else putTask({...t, order:k});
   render();
 }
+/* a task dropped on a tab moves into that drawer (오늘/내일 = that day) */
+function dropOnTab(id, tab){
+  const t = S.tasks.get(id); if (!t || isDivider(t)) { render(); return; }
+  const dest = tab==='daily' ? 'today' : tab;
+  const label = tab==='tomorrow' ? '내일' : info(tab).name;
+  if (currentDest(t)===dest){ render(); return; }
+  const before = snap([id]);
+  putTask(moveTask(t, dest, dest==='project' ? (projExists(t.project) ? t.project : null) : null)); buzz(); render();
+  undoToast(`${label}(으)로 옮겼어요`, before);
+}
 function swipeToToday(id){
   const t = S.tasks.get(id); if (!t || isDivider(t)) return;
   const before = snap([id]);
@@ -695,7 +707,31 @@ function beginDrag(){
   D.li.classList.add('dragging'); document.documentElement.classList.add('dragging-now');
   buzz(); requestAnimationFrame(autoScroll);
 }
+function tabUnder(x, y){
+  if (D.opts.onReorder) return null;                 // only task lists can be dropped on a tab
+  const t = document.elementFromPoint(x, y); const tab = t && t.closest && t.closest('.tab[data-tab]');
+  return tab ? tab.dataset.tab : null;
+}
+function showDropTarget(id){
+  document.querySelectorAll('.tab.droptarget').forEach(t=>t.classList.remove('droptarget'));
+  if (id){ const t = document.querySelector(`.tab[data-tab="${id}"]`); if (t) t.classList.add('droptarget'); }
+  const task = S.tasks.get(D.li.dataset.id);
+  if (!D.ghost){ D.ghost = h('div',{class:'dragghost'}); document.body.append(D.ghost); }
+  const outside = D.lastY < SC().getBoundingClientRect().top;
+  D.ghost.hidden = !outside;
+  if (outside){
+    const label = id ? (id==='tomorrow' ? '내일' : info(id).name) : '';
+    D.ghost.textContent = (task ? task.title : '') + (label ? `  →  ${label}` : '');
+    D.ghost.style.left = Math.max(8, Math.min(window.innerWidth - 220, D.lastX - 40)) + 'px';
+    D.ghost.style.top = (D.lastY + 18) + 'px';
+  }
+  D.li.style.opacity = outside ? '.35' : '';
+}
 function dragMove(){
+  const over = tabUnder(D.lastX, D.lastY);
+  if (over !== D.overTab){ D.overTab = over; if (over) buzz(); }
+  showDropTarget(over);
+  if (over){ D.rows.forEach((r,i)=>{ if (i!==D.idx) r.style.transform = ''; }); D.target = D.idx; return; }
   const dy = (D.lastY + SC().scrollTop) - (D.y + D.sy);
   D.li.style.transform = `translateY(${dy}px) scale(1.01)`;
   const center = D.tops[D.idx] + D.h/2 + dy;
@@ -716,10 +752,14 @@ function dragMove(){
 }
 function autoScroll(){
   if (!D || D.mode!=='drag') return;
-  const y = D.lastY, topEdge = 160, botEdge = window.innerHeight - 80;
+  const y = D.lastY, top = SC().getBoundingClientRect().top, topEdge = top + 50, botEdge = window.innerHeight - 80;
   let v = 0;
-  if (y < topEdge) v = -Math.ceil((topEdge - y)/8); else if (y > botEdge) v = Math.ceil((y - botEdge)/8);
+  if (y > top && y < topEdge) v = -Math.ceil((topEdge - y)/6); else if (y > botEdge) v = Math.ceil((y - botEdge)/8);
   if (v){ SC().scrollBy(0, v); dragMove(); }
+  const tabs = document.getElementById('tabs'), tr = tabs.getBoundingClientRect();
+  if (!D.opts.onReorder && y >= tr.top - 20 && y <= tr.bottom + 10){
+    if (D.lastX < tr.left + 44) tabs.scrollLeft -= 7; else if (D.lastX > tr.right - 44) tabs.scrollLeft += 7;
+  }
   requestAnimationFrame(autoScroll);
 }
 const SWIPE_AT = 90;
@@ -800,7 +840,10 @@ function endGesture(){
     else if (needRender){ needRender = false; render(); }
     return;
   }
-  d.rows.forEach(r => r.style.transform = ''); d.li.classList.remove('dragging');
+  d.rows.forEach(r => r.style.transform = ''); d.li.classList.remove('dragging'); d.li.style.opacity = '';
+  if (d.ghost) d.ghost.remove();
+  document.querySelectorAll('.tab.droptarget').forEach(t=>t.classList.remove('droptarget'));
+  if (d.overTab){ dropOnTab(d.li.dataset.id, d.overTab); return; }
   if (d.target !== d.idx){
     const ids = d.rows.map(r => r.dataset.id);
     const [m] = ids.splice(d.idx,1); ids.splice(d.target,0,m);
@@ -854,7 +897,7 @@ function renderTabs(){
     : id==='tomorrow' ? (S.view==='daily' && S.viewDate===tmr)
     : S.view===id;
   const tab = (id, label, n) => { const hide = info(id==='tomorrow' ? 'daily' : id).hideCount;
-    return h('button',{class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n && !hide ? h('span',{class:'n'}, n) : null); };
+    return h('button',{'data-tab':id, class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n && !hide ? h('span',{class:'n'}, n) : null); };
   nav.append(tab('daily', info('daily').name, c.daily));
   nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done && !notTodo(x)).length));
   folderIds().filter(f=>f!=='daily').forEach(f => nav.append(tab(f, info(f).name, c[f])));
