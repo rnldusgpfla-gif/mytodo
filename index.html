@@ -51,6 +51,7 @@ img{max-width:100%}
 }
 :root[data-fs="s"]{--fs:14.5px} :root[data-fs="l"]{--fs:18px} :root[data-fs="xl"]{--fs:20px}
 *{box-sizing:border-box}
+html{background:var(--bg)}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
 button,input,select{font:inherit;color:inherit}
@@ -380,7 +381,18 @@ function applyTheme(){
   if (themePref==='light' || themePref==='dark') r.setAttribute('data-theme', themePref);
   else if (hostTheme) r.setAttribute('data-theme', hostTheme);
   else r.removeAttribute('data-theme');
+  syncBarColor();
 }
+/* the phone's top bar (clock, battery) takes its color from theme-color, so it follows the app's own 라이트/다크 choice */
+const darkMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+function syncBarColor(){
+  if (IN_CLAUDE) return;
+  const dark = themePref==='dark' || (themePref!=='light' && (hostTheme ? hostTheme==='dark' : !!(darkMQ && darkMQ.matches)));
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>m.remove());
+  const m = document.createElement('meta'); m.name = 'theme-color'; m.content = dark ? '#141517' : '#FFFFFF';
+  document.head.append(m);
+}
+if (darkMQ && darkMQ.addEventListener) darkMQ.addEventListener('change', ()=>{ if (themePref==='system') syncBarColor(); });
 function applyFont(){
   const f = FONTS.find(x=>x[0]===fontPref) || FONTS[0];
   let st = document.getElementById('font-face');
