@@ -77,6 +77,7 @@ body{display:flex;flex-direction:column;overflow:hidden}
 .tab{flex:none;border:0;background:none;padding:8px 9px 10px;font-size:15px;color:var(--fg-2);display:flex;align-items:center;gap:6px;position:relative;white-space:nowrap}
 .tab.droptarget{background:var(--accent-soft);color:var(--accent);border-radius:10px;transform:scale(1.06)}
 .dragghost{position:fixed;z-index:40;max-width:220px;padding:8px 12px;border-radius:12px;background:var(--sheet);color:var(--fg);box-shadow:var(--lift);font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.tab .tdot{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
 .tab .n{background:var(--pill);color:var(--fg-2);font-size:12px;font-weight:600;border-radius:99px;padding:1px 7px;font-variant-numeric:tabular-nums}
 .tab[aria-selected="true"]{color:var(--accent);font-weight:600}
 .tab[aria-selected="true"]::after{content:"";position:absolute;left:6px;right:6px;bottom:0;height:1.5px;border-radius:1px;background:var(--accent)}
@@ -896,8 +897,9 @@ function renderTabs(){
   const sel = id => id==='daily' ? (S.view==='daily' && S.viewDate===today())
     : id==='tomorrow' ? (S.view==='daily' && S.viewDate===tmr)
     : S.view===id;
-  const tab = (id, label, n) => { const hide = info(id==='tomorrow' ? 'daily' : id).hideCount;
-    return h('button',{'data-tab':id, class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)}, label, n && !hide ? h('span',{class:'n'}, n) : null); };
+  // a small dot in the drawer's color sits left of each name (내일 shares 오늘's color)
+  const tab = (id, label) => h('button',{'data-tab':id, class: id==='daily' ? 'tab today' : 'tab', role:'tab', 'aria-selected':String(sel(id)), onclick:()=>go(id)},
+    h('span',{class:'tdot', style:`--c:${cvar(id==='tomorrow' ? 'daily' : id)}`}), label);
   nav.append(tab('daily', info('daily').name, c.daily));
   nav.append(tab('tomorrow', '내일', all().filter(x=>x.folder==='daily' && x.date===tmr && !x.done && !notTodo(x)).length));
   folderIds().filter(f=>f!=='daily').forEach(f => nav.append(tab(f, info(f).name, c[f])));
@@ -1514,7 +1516,6 @@ function openDrawerSheet(fid){
     h('label',{class:'field'}, h('span',null,'서랍 이름'), name),
     h('label',{class:'field'}, h('span',null,'설명 (이름 옆에 작게 보여요)'), desc),
     h('div',{class:'field'}, h('span',null,'색'), sw),
-    h('div',{class:'field'}, h('span',null, fid==='daily' ? '탭에 남은 개수 표시 (내일 탭도 같이 적용돼요)' : '탭에 남은 개수 표시'), countChips),
     h('div',{class:'row'}, left, h('button',{class:'btn pri', type:'button', onclick:save}, editing ? '저장' : '만들기'))), null, ()=>{ if (name.value.trim()) save(); else closeLayer(); });
   if (!editing) setTimeout(()=>name.focus(), 50);
 }
