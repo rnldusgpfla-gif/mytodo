@@ -251,6 +251,9 @@ li.addrow input:focus{outline:none}
 /* sheet + modal */
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--sheet);width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:10px max(18px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));max-height:90%;overflow-y:auto;animation:up .2s ease-out;display:flex;flex-direction:column;gap:16px}
+.sheettop{position:sticky;top:-10px;z-index:3;background:var(--sheet);margin-top:-10px;padding:10px 0 2px;display:grid;grid-template-columns:64px 1fr 64px;align-items:center}
+.sheettop .grab{grid-column:2}
+.sheettop .txtbtn{grid-column:3;justify-self:end;font-size:16px;padding:8px 2px 8px 10px}
 .grab{width:38px;height:5px;border-radius:9px;background:var(--line);margin:0 auto;box-shadow:0 0 0 12px transparent;cursor:grab;flex:none}
 @keyframes up{from{transform:translateY(24px);opacity:.5}to{transform:none;opacity:1}}
 .titlein{display:flex;align-items:center;gap:8px}
@@ -617,7 +620,7 @@ function openDividerSheet(id){
   const save = () => { const cur = S.tasks.get(id); if (cur && name.value.trim() !== (cur.title||'')) putTask({...cur, title:name.value.trim()}); closeLayer(); };
   name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); save(); } });
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'구분선'},
-    h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'구분선 이름 (비워 두면 선만 보여요)'), name),
+    sheetTop(save), h('label',{class:'field'}, h('span',null,'구분선 이름 (비워 두면 선만 보여요)'), name),
     h('p',{class:'hint', style:'padding:0'}, '길게 눌러 끌면 위치를 옮길 수 있어요.'),
     h('div',{class:'row'},
       h('button',{class:'btn danger', type:'button', onclick:()=>{ closeLayer(); removeTask(id); }}, '구분선 삭제'),
@@ -1171,7 +1174,7 @@ function openNewRoutine(){
   };
   name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); make(); } });
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'새 루틴'},
-    h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'새 루틴'), name),
+    sheetTop(make, '다음'), h('label',{class:'field'}, h('span',null,'새 루틴'), name),
     h('p',{class:'hint', style:'padding:0'}, '루틴은 정한 날마다 할 일 아래 루틴 칸에 나와요. 못 해도 다음 날로 넘어가지 않아요.'),
     h('div',{class:'row'}, h('button',{class:'btn', type:'button', onclick:closeLayer}, '취소'), h('button',{class:'btn pri', type:'button', onclick:make}, '다음'))),
     null, ()=>{ if (name.value.trim()) make(); else closeLayer(); });
@@ -1284,6 +1287,8 @@ function renderRecord(main){
 
 /* ---------- overlays ---------- */
 let lastFocus = null;
+// top of a bottom sheet: the grab handle plus a 저장 button that stays visible while scrolling
+const sheetTop = (onSave, label='저장') => h('div',{class:'sheettop'}, h('div',{class:'grab'}), h('button',{class:'txtbtn', type:'button', onmousedown:e=>e.preventDefault(), onclick:onSave}, label));   // mousedown: keep the keyboard field focused so the tap isn't lost to a redraw
 function openLayer(node, beforeClose, pullSave){
   lastFocus = document.activeElement;
   const layer = document.getElementById('layer'); layer.innerHTML='';
@@ -1384,6 +1389,7 @@ function dueEditor(t, onChange){
 function openTaskSheet(id){
   const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'할 일 편집'});
   let titleIn, noteIn, memoIn;
+  const top = sheetTop(()=>{ closeLayer(); toast('저장했어요'); });   // kept across redraws so a tap right after typing still lands
   const saveTitle = () => {
     const cur = S.tasks.get(id); const v = titleIn && titleIn.value.trim();
     if (cur && v && v!==cur.title){ putTask({...cur, title:v}); const r = cur.routine && S.routines.get(cur.routine); if (r) putRoutine({...r, title:v}); }
@@ -1398,7 +1404,7 @@ function openTaskSheet(id){
     titleIn = h('input',{id:'sheet-title', type:'text', value:t.title, 'aria-label':'할 일 이름'});
     titleIn.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); titleIn.blur(); } });
     titleIn.addEventListener('change', saveTitle);
-    sheet.append(h('div',{class:'grab'}),
+    sheet.append(top,
       h('div',{class:'titlein'}, titleIn,
         h('button',{class:'star', 'aria-pressed':String(!!t.star), 'aria-label': t.star?'중요 표시 해제':'중요 표시', html:ICON.star, onclick:()=>{ saveTitle(); toggleStar(id); draw(); }})),
       (()=>{
@@ -1492,6 +1498,7 @@ function openRoutineSheet(rid){
   const RK = kindOf(S.routines.get(rid))==='routine', NOUN = RK ? '루틴' : '반복 할 일';
   const sheet = h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':NOUN});
   let titleIn;
+  const top = sheetTop(()=>{ closeLayer(); toast('저장했어요'); });
   const saveTitle = () => { const r = S.routines.get(rid); const v = titleIn && titleIn.value.trim(); if (r && v && v!==r.title) putRoutine({...r, title:v}); };
   const draw = () => {
     const r = S.routines.get(rid); if (!r){ closeLayer(); return; }
@@ -1499,7 +1506,7 @@ function openRoutineSheet(rid){
     titleIn = h('input',{id:'routine-title', type:'text', value:r.title, 'aria-label':NOUN+' 이름'});
     titleIn.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); titleIn.blur(); } });
     titleIn.addEventListener('change', saveTitle);
-    sheet.append(h('div',{class:'grab'}),
+    sheet.append(top,
       h('div',{class:'titlein'}, titleIn,
         h('button',{class:'star', 'aria-pressed':String(!!r.star), 'aria-label': r.star?'중요 표시 해제':'중요 표시', html:ICON.star, onclick:()=>{ saveTitle(); putRoutine({...S.routines.get(rid), star:!r.star}); draw(); }})),
       ruleEditor(r.rule, r.start || today(), nr=>{ saveTitle(); putRoutine({...S.routines.get(rid), rule:nr}); draw(); }, false),
@@ -1556,7 +1563,7 @@ function openDrawerSheet(fid){
       h('span',{class:'grow'}, h('b',null, info(f).name), h('span',{class:'sub'}, info(f).desc)),
       h('button',{class:'txtbtn', type:'button', onclick:()=>{ const m = {...S.meta}; const x = {...(m[f]||{})}; delete x.removed; m[f] = x; S.meta = m; putApp(); closeLayer(); toast(`'${info(f).name}' 서랍을 다시 꺼냈어요`); }}, '꺼내기'))))) : null;
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label': editing ? '서랍 설정' : '새 서랍'},
-    h('div',{class:'grab'}),
+    sheetTop(save, editing ? '저장' : '만들기'),
     h('label',{class:'field'}, h('span',null,'서랍 이름'), name),
     h('label',{class:'field'}, h('span',null,'설명 (이름 옆에 작게 보여요)'), desc),
     h('div',{class:'field'}, h('span',null,'색'), sw),
@@ -1610,7 +1617,7 @@ function openNewProject(){
   const make = () => { if (!name.value.trim()) return; ensureProject(name.value, color); closeLayer(); };
   name.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.isComposing){ e.preventDefault(); make(); } });
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'새 프로젝트'},
-    h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'새 프로젝트 이름'), name),
+    sheetTop(make, '만들기'), h('label',{class:'field'}, h('span',null,'새 프로젝트 이름'), name),
     h('div',{class:'field'}, h('span',null,'색 (할 일 옆 프로젝트 뱃지 색)'), swatchPicker(color, c=>{ color = c; })),
     h('div',{class:'row'}, h('button',{class:'btn', type:'button', onclick:closeLayer}, '취소'), h('button',{class:'btn pri', type:'button', onclick:make}, '만들기'))), null, ()=>{ if (name.value.trim()) make(); else closeLayer(); });
   setTimeout(()=>name.focus(), 50);
@@ -1621,7 +1628,7 @@ function openProjectSheet(pid){
   const count = all().filter(t=>t.folder==='project' && t.project===pid).length;
   let color = p.c || '--f-project';
   openLayer(h('div',{class:'sheet', role:'dialog', 'aria-modal':'true', 'aria-label':'프로젝트 설정'},
-    h('div',{class:'grab'}), h('label',{class:'field'}, h('span',null,'프로젝트 이름'), name),
+    sheetTop(()=>saveP()), h('label',{class:'field'}, h('span',null,'프로젝트 이름'), name),
     h('div',{class:'field'}, h('span',null,'색 (할 일 옆 프로젝트 뱃지 색)'), swatchPicker(color, c=>{ color = c; })),
     h('div',{class:'row'},
       h('button',{class:'btn danger', type:'button', onclick:()=>{
